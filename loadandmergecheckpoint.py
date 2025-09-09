@@ -2,9 +2,7 @@ import os
 import re
 import torch
 from models import Model
-from moshi.models import loaders
-from huggingface_hub import hf_hub_download
-from safetensors.torch import save_file
+from safetensors.torch import save_file, load_file 
 
 from lora import (
     remove_lora_modules,
@@ -12,10 +10,11 @@ from lora import (
     strip_bias_keys,
     DEVICE,
     OUTPUT_DIR,
+    replace_linear_with_lora,
 )
 MODEL_NAME = "sesame/csm-1b"
 R=32
-APLHA=64
+APLHA=32
 
 def find_latest_checkpoint(dir_path):
     checkpoints = [
@@ -30,28 +29,30 @@ def find_latest_checkpoint(dir_path):
     return latest_path
 
 def load_checkpoint_and_merge():
-    print("Loading model...")
+    print("Loading base model...")
     model = Model.from_pretrained(MODEL_NAME).to(DEVICE)
 
-    print("Applying LoRA structure...")
-    from lora import replace_linear_with_lora
+    print("Applying LoRA structure to the model...")
     model = replace_linear_with_lora(model, r=R, alpha=APLHA, dropout=0.0)
 
     checkpoint_path = find_latest_checkpoint(OUTPUT_DIR)
-    state = torch.load(os.path.join(checkpoint_path, "model.safetensors"), map_location=DEVICE)
+    
+    print(f"Loading state dictionary from safetensors file...")
+    state_dict = load_file(os.path.join(checkpoint_path, "model.safetensors"), device=DEVICE)
 
-    model.load_state_dict(state["model_state_dict"], strict=False)
+    print("Loading weights into the model...")
+    model.load_state_dict(state_dict, strict=False)
 
     print("Merging LoRA weights into base model...")
     merge_lora_weights(model)
 
-    print("Replacing LoRALinear modules with nn.Linear...")
+    print("Replacing LoRALinear modules with standard nn.Linear...")
     model = remove_lora_modules(model)
 
-    print("Stripping bias keys...")
+    print("Stripping bias keys for final clean model...")
     merged_state = strip_bias_keys(model.state_dict())
 
-    final_path = os.path.join(OUTPUT_DIR, "model_clean.safetensors")
+    final_path = os.path.join(OUTPUT_DIR, "model.safetensors")
     save_file(merged_state, final_path)
     print(f"Merged and cleaned model saved to: {final_path}")
 
