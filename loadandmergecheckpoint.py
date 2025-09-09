@@ -33,8 +33,9 @@ def load_checkpoint_and_merge():
     model = Model.from_pretrained(MODEL_NAME).to(DEVICE)
 
     print("Applying LoRA structure to the model...")
-    model = replace_linear_with_lora(model, r=R, alpha=APLHA, dropout=0.0)
+    target_layers = ['q_proj', 'k_proj', 'v_proj', 'o_proj']
 
+    model = replace_linear_with_lora(model, r=R, alpha=APLHA, dropout=0.0, target_linear_names = target_layers)
     checkpoint_path = find_latest_checkpoint(OUTPUT_DIR)
     
     print(f"Loading state dictionary from safetensors file...")
