@@ -555,102 +555,91 @@ MAX_SEGMENTS = 8
 def add_segment(text, speaker_id, audio_tensor):
     """
     Add a new segment and ensure the total context stays within token limits.
-    Preserves the original reference segments when trimming.
-    
+    This version correctly separates protected and dynamic segments, performs trimming
+    on the dynamic list, and rebuilds the global context list at the end.
+
     Args:
         text: Text content of the segment
         speaker_id: ID of the speaker (0 for AI, 1 for user)
         audio_tensor: Audio data as a tensor
     """
     global reference_segments, generator, config
-    
-    # Count how many original reference segments we have (1-3)
-    num_reference_segments = 1  # We always have at least the primary reference
-    if hasattr(config, 'reference_audio_path2') and config.reference_audio_path2:
-        num_reference_segments += 1
-    if hasattr(config, 'reference_audio_path3') and config.reference_audio_path3:
-        num_reference_segments += 1
-    
-    # Add the new segment
+
+    # Determine the number of protected, initial reference segments based on what was actually loaded.
+    num_protected_segments = 0
+    if config.reference_audio_path and os.path.exists(config.reference_audio_path):
+        num_protected_segments += 1
+    if config.reference_audio_path2 and os.path.exists(config.reference_audio_path2):
+        num_protected_segments += 1
+    if config.reference_audio_path3 and os.path.exists(config.reference_audio_path3):
+        num_protected_segments += 1
+
+    # Separate protected from dynamic segments from the current global state
+    protected_segments = reference_segments[:num_protected_segments]
+    dynamic_segments = reference_segments[num_protected_segments:]
+
+    # Add the new segment to the dynamic list
     new_segment = Segment(text=text, speaker=speaker_id, audio=audio_tensor)
-    
-    # Keep original reference segments protected from trimming
-    protected_segments = reference_segments[:num_reference_segments] if len(reference_segments) >= num_reference_segments else reference_segments.copy()
-    
-    # Dynamic segments that can be trimmed
-    dynamic_segments = reference_segments[num_reference_segments:] if len(reference_segments) > num_reference_segments else []
     dynamic_segments.append(new_segment)
-    
-    # First trim by MAX_SEGMENTS if needed, but never trim protected segments
-    while len(protected_segments) + len(dynamic_segments) > MAX_SEGMENTS:
-        if dynamic_segments:
-            dynamic_segments.pop(0)  # Remove the oldest non-protected segment
-        else:
-            break  # Safety check - shouldn't happen
-    
-    # Combine protected and dynamic segments
-    reference_segments = protected_segments + dynamic_segments
-    
-    # Then check and trim by token count
-    # We need to access the model's tokenizer to properly count tokens
+
+    # First, trim by MAX_SEGMENTS count. The oldest dynamic segments are removed.
+    max_dynamic_allowed = MAX_SEGMENTS - len(protected_segments)
+    if len(dynamic_segments) > max_dynamic_allowed:
+        # Keep only the most recent dynamic segments
+        dynamic_segments = dynamic_segments[-max_dynamic_allowed:]
+
+    # Then, check and trim by token count if necessary.
+    # This loop will trim the oldest dynamic segments until the token count is acceptable.
     if hasattr(generator, '_text_tokenizer'):
-        total_tokens = 0
-        
-        # Count tokens in all segments
-        for segment in reference_segments:
-            tokens = generator._text_tokenizer.encode(f"[{segment.speaker}]{segment.text}")
-            total_tokens += len(tokens)
-            if segment.audio is not None:
-                audio_frames = segment.audio.size(0) // 285  # Approximate frame count
-                total_tokens += audio_frames
-        
-        # Remove oldest dynamic segments until we're under the token limit
-        # but never remove protected segments
-        while dynamic_segments and total_tokens > 2048:
-            removed = dynamic_segments.pop(0)
-            reference_segments.remove(removed)
-            
-            # Recalculate tokens for the removed segment
-            removed_tokens = len(generator._text_tokenizer.encode(f"[{removed.speaker}]{removed.text}"))
-            if removed.audio is not None:
-                removed_audio_frames = removed.audio.size(0) // 285
-                removed_tokens += removed_audio_frames
-            total_tokens -= removed_tokens
-            
-        logger.info(f"Segments: {len(reference_segments)} " +
-                    f"({len(protected_segments)} protected, {len(dynamic_segments)} dynamic), " +
-                    f"total tokens: {total_tokens}/2048")
+        while dynamic_segments:
+            # Tentatively combine for token calculation
+            temp_full_list = protected_segments + dynamic_segments
+            total_tokens = 0
+
+            # Calculate total tokens for the current combination
+            for segment in temp_full_list:
+                tokens = generator._text_tokenizer.encode(f"[{segment.speaker}]{segment.text}")
+                total_tokens += len(tokens)
+                if segment.audio is not None:
+                    # Approximate frame count to token conversion
+                    audio_frames = segment.audio.size(0) // 285
+                    total_tokens += audio_frames
+
+            # If we are within limits, the trimming is done.
+            if total_tokens <= 4096:
+                break
+
+            # Otherwise, remove the oldest dynamic segment and re-check in the next loop iteration.
+            dynamic_segments.pop(0)
+
     else:
-        # Fallback if we can't access the tokenizer - make a rough estimate
-        logger.warning("Unable to access tokenizer - falling back to word-based estimation")
-        
+        # Fallback if tokenizer is not available
+        logger.warning("Unable to access tokenizer - falling back to word-based estimation for context trimming")
+
         def estimate_tokens(segment):
-            # Rough token estimation based on words and punctuation
             words = segment.text.split()
             punctuation = sum(1 for char in segment.text if char in ".,!?;:\"'()[]{}")
             text_tokens = len(words) + punctuation
-            
-            # Estimate audio tokens
             audio_tokens = 0
             if segment.audio is not None:
-                audio_frames = segment.audio.size(0) // 300  # Approximate frame count
+                audio_frames = segment.audio.size(0) // 300
                 audio_tokens = audio_frames
-                
             return text_tokens + audio_tokens
-        
-        # Calculate total token count
-        total_estimated_tokens = sum(estimate_tokens(segment) for segment in reference_segments)
-        
-        # Remove oldest dynamic segments until we're under the token limit
-        while dynamic_segments and total_estimated_tokens > 2048:
-            removed = dynamic_segments.pop(0)
-            idx = reference_segments.index(removed)
-            reference_segments.pop(idx)
-            total_estimated_tokens -= estimate_tokens(removed)
-            
-        logger.info(f"Segments: {len(reference_segments)} " +
-                    f"({len(protected_segments)} protected, {len(dynamic_segments)} dynamic), " +
-                    f"estimated tokens: {total_estimated_tokens}/2048")
+
+        while dynamic_segments:
+            total_estimated_tokens = sum(estimate_tokens(s) for s in protected_segments) + \
+                                     sum(estimate_tokens(s) for s in dynamic_segments)
+            if total_estimated_tokens <= 4096:
+                break
+            dynamic_segments.pop(0)
+
+    # Finally, overwrite the global variable with the new, correctly-trimmed list.
+    # This is the single source of truth for the update.
+    reference_segments = protected_segments + dynamic_segments
+
+    # Log the final state for debugging
+    logger.info(f"Context updated. Segments: {len(reference_segments)} total " +
+                f"({len(protected_segments)} protected, {len(dynamic_segments)} dynamic).")
 
 def preprocess_text_for_tts(text):
     """
