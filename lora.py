@@ -1,3 +1,4 @@
+import json
 import os
 import glob
 import torch
@@ -34,9 +35,9 @@ AUDIO_DIR = "audio_data"
 OUTPUT_DIR = "finetuned_model"
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
-GRADIENT_ACCUMULATION_STEPS = 16
-LEARNING_RATE = 1e-6
-MAX_GRAD_NORM = 0.5
+GRADIENT_ACCUMULATION_STEPS = 4
+LEARNING_RATE = 2e-4
+MAX_GRAD_NORM = 0.1
 NUM_CYCLES = 1.0
 USE_WANDB = False
 SEED = 42
@@ -48,7 +49,7 @@ MODEL_NAME = "sesame/csm-1b"
 TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo"
 MAX_AUDIO_FILES = 0
 R=32
-APLHA=64
+APLHA=32
 
 class TrainingVisualizer:
     def __init__(self, output_dir):
@@ -59,8 +60,7 @@ class TrainingVisualizer:
         self.learning_rates = []
         self.steps = []
         
-        # Create the figure and axes only once
-        self.fig, self.axes = plt.subplots(3, 1, figsize=(10, 15))  # Increased figure size for 3 plots
+        self.fig, self.axes = plt.subplots(3, 1, figsize=(10, 15))
         self.fig.suptitle('CSM Finetuning Progress', fontsize=16)
         
         # Setup training loss plot
@@ -289,11 +289,6 @@ class TrainingVisualizer:
         return final_plot_path
 
 class LoRALinear(nn.Module):
-    """
-    A simple LoRA wrapper for a Linear layer. Freezes the main weights,
-    adds two low-rank trainable matrices A and B, whose product is added
-    to the forward pass.
-    """
     def __init__(self, in_features, out_features, r=32, alpha=64, dropout=0.0, bias=True):
         super().__init__()
         self.in_features = in_features
@@ -478,7 +473,7 @@ class CSMDataset(Dataset):
         }
 
 def collate_fn(batch):
-    max_seq_len = 128
+    max_seq_len = 1024
     device = batch[0]["input_tokens"].device
     
     max_input_len = min(max(item["input_tokens"].size(0) for item in batch), max_seq_len)
@@ -516,30 +511,75 @@ def collate_fn(batch):
 
 def transcribe_audio_files():
     from transformers import pipeline
+    
+    # Cache file path
+    cache_file = os.path.join(AUDIO_DIR, "transcription_cache.json")
+    
+    # Load existing cache
+    cache = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+            logger.info(f"Loaded transcription cache with {len(cache)} entries")
+        except Exception as e:
+            logger.warning(f"Could not load cache file: {e}")
+            cache = {}
+    
     logger.info(f"Transcribing audio files in: {AUDIO_DIR}")
     transcriber = pipeline("automatic-speech-recognition", model=TRANSCRIPTION_MODEL)
-    
     audio_text_pairs = []
+    
     audio_files = glob.glob(os.path.join(AUDIO_DIR, "*.wav")) \
-                  + glob.glob(os.path.join(AUDIO_DIR, "*.mp3")) \
-                  + glob.glob(os.path.join(AUDIO_DIR, "*.flac"))
+        + glob.glob(os.path.join(AUDIO_DIR, "*.mp3")) \
+        + glob.glob(os.path.join(AUDIO_DIR, "*.flac"))
     
     if MAX_AUDIO_FILES > 0 and len(audio_files) > MAX_AUDIO_FILES:
         logger.info(f"Found {len(audio_files)} files, limiting to {MAX_AUDIO_FILES}")
         audio_files = audio_files[:MAX_AUDIO_FILES]
     
-    for audio_file in tqdm(audio_files, desc="Transcribing audio files"):
+    cache_hits = 0
+    cache_misses = 0
+    
+    for audio_file in tqdm(audio_files, desc="Processing audio files"):
         try:
-            result = transcriber(audio_file)
-            transcription = result["text"].strip()
-            logger.info(f"Transcribed: {os.path.basename(audio_file)} -> {transcription}")
+            # Create cache key using file path and modification time
+            file_stat = os.stat(audio_file)
+            cache_key = f"{audio_file}_{file_stat.st_mtime}_{file_stat.st_size}"
+            
+            # Check if transcription exists in cache
+            if cache_key in cache:
+                transcription = cache[cache_key]
+                cache_hits += 1
+                logger.debug(f"Cache hit: {os.path.basename(audio_file)}")
+            else:
+                # Transcribe the file
+                result = transcriber(audio_file, return_timestamps=True, chunk_length_s=30,
+                                   stride_length_s=[6, 0], batch_size=32,
+                                   generate_kwargs={"language": "<|en|>", "task": "transcribe"})
+                transcription = result["text"].strip()
+                
+                # Save to cache
+                cache[cache_key] = transcription
+                cache_misses += 1
+                logger.info(f"Transcribed: {os.path.basename(audio_file)} -> {transcription}")
+            
             audio_text_pairs.append(
                 AudioTextPair(audio_path=audio_file, text=transcription, speaker_id=0)
             )
+            
         except Exception as e:
-            logger.error(f"Error transcribing {audio_file}: {e}")
+            logger.error(f"Error processing {audio_file}: {e}")
     
-    logger.info(f"Transcribed {len(audio_text_pairs)} audio files")
+    # Save updated cache
+    try:
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved transcription cache with {len(cache)} entries")
+    except Exception as e:
+        logger.error(f"Could not save cache file: {e}")
+    
+    logger.info(f"Processed {len(audio_text_pairs)} audio files (Cache hits: {cache_hits}, Cache misses: {cache_misses})")
     return audio_text_pairs
 
 def prepare_csm_model_for_training():
@@ -552,17 +592,23 @@ def prepare_csm_model_for_training():
     mimi.set_num_codebooks(32)
     audio_tokenizer = mimi
     try:
-        codebook_0_centroids = mimi.quantizer.codebooks[0].weight.data  # [V, D]
+
+        codebook_0_centroids = mimi.quantizer.rvq_first.layers[0].codebook.weight.data
+        
         num_codebook_0_tokens, embedding_dim = codebook_0_centroids.shape
         model.codebook_embedding = nn.Embedding(num_codebook_0_tokens, embedding_dim).to(DEVICE)
         model.codebook_embedding.weight.data.copy_(codebook_0_centroids)
-        logger.info(f"Initialized codebook_embedding with shape: {codebook_0_centroids.shape}")
-    except Exception as e:
-        logger.error(f"Failed to initialize codebook_embedding from Mimi: {e}")
-        num_codebook_0_tokens, embedding_dim = 1024, 1024 
+        logger.info(f"Successfully initialized codebook_embedding with shape: {codebook_0_centroids.shape}")
+
+    except AttributeError:
+        num_codebook_0_tokens, embedding_dim = 1024, 1024
         model.codebook_embedding = nn.Embedding(num_codebook_0_tokens, embedding_dim).to(DEVICE)
         nn.init.xavier_uniform_(model.codebook_embedding.weight)
-        logger.info("Falling back to random init for codebook_embedding")
+        
+    except Exception as e:
+        num_codebook_0_tokens, embedding_dim = 1024, 1024
+        model.codebook_embedding = nn.Embedding(num_codebook_0_tokens, embedding_dim).to(DEVICE)
+        nn.init.xavier_uniform_(model.codebook_embedding.weight)
 
     # Some fallback logic for config
     if not hasattr(model.config, 'get'):
@@ -571,27 +617,29 @@ def prepare_csm_model_for_training():
                 return getattr(self, key)
             return default
         model.config.__class__.get = get_method
-        if not hasattr(model.config, 'tie_word_embeddings'):
-            model.config.tie_word_embeddings = False
-
+    if not hasattr(model.config, 'tie_word_embeddings'):
+        model.config.tie_word_embeddings = False
+    target_layers = ['q_proj', 'k_proj', 'v_proj', 'o_proj']
     logger.info("Applying LoRA to model...")
     model = replace_linear_with_lora(
         model,
         r=R,
         alpha=APLHA,
-        dropout=0.0,
-        target_linear_names=None
+        dropout=0.01,
+        target_linear_names=target_layers
     )
     model.cuda()
-    # Freeze entire model by default, then unfreeze LoRA parameters
+    
+
+    # First, freeze all parameters of the base model
+    for param in model.parameters():
+        param.requires_grad = False
+
+    # Then, unfreeze only the newly added LoRA parameters.
+    # It is also common practice to train the bias parameters.
     for name, param in model.named_parameters():
         if "lora_A" in name or "lora_B" in name or "bias" in name:
             param.requires_grad = True
-        elif "backbone.blocks.23" in name or "embedding" in name:  # last block unfreeze
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
-
 
     return model, text_tokenizer, audio_tokenizer
 
@@ -741,18 +789,7 @@ def calculate_validation_loss(model, bridging_module, dataset, device, max_sampl
         for batch in val_loader:
             setup_model_caches(model, batch["target_tokens"].size(0))
             
-            target_tokens = batch["target_tokens"].to(device)
-            target_masks = batch["target_masks"].to(device)
-            positions = batch["positions"].to(device)
-            
-            if target_tokens.size(1) > 128:
-                target_tokens = target_tokens[:, :128]
-                target_masks = target_masks[:, :128]
-                positions = positions[:, :128]
-            
-            # Forward pass
-            loss = single_pass_forward(model, bridging_module,
-                                      target_tokens, target_masks, positions)
+            loss = forward_and_loss(model, bridging_module, batch, device)
             
             total_loss += loss.item()
             num_batches += 1
@@ -776,10 +813,6 @@ def strip_bias_keys(state_dict: dict) -> dict:
     return new_sd
 
 def remove_lora_modules(module: nn.Module) -> nn.Module:
-    """
-    Recursively scan 'module' and replace any LoRALinear submodules
-    with standard nn.Linear modules containing the merged weights.
-    """
     for name, child in list(module.named_children()):
         new_child = remove_lora_modules(child)
         setattr(module, name, new_child)
@@ -820,11 +853,6 @@ def merge_lora_layer(lora_module: LoRALinear):
     lora_module.lora_B.data.zero_()
 
 def merge_lora_weights(model: nn.Module):
-    """
-    Finds all LoRALinear modules in the model and merges their LoRA weights
-    back into the base `weight`. After calling this, the model is a normal
-    set of weights with no 'lora_*' parameters needed.
-    """
     for module in model.modules():
         if isinstance(module, LoRALinear):
             merge_lora_layer(module)
@@ -838,61 +866,47 @@ def finetune(model, dataset):
         writer.writerow(["epoch", "step", "global_step", "loss", "learning_rate", "val_loss"])
     
     def log_metrics(epoch, step, global_step, loss, learning_rate, val_loss=None):
-        # Log to CSV
         with open(csv_file, "a", newline="") as f:
             writer = csv.writer(f)
             writer.writerow([epoch, step, global_step, loss, learning_rate, val_loss if val_loss is not None else ""])
-        
-        # Update visualization
         visualizer.update(epoch, global_step, loss, learning_rate, val_loss)
 
     visualizer = TrainingVisualizer(OUTPUT_DIR)
     bridging_module = BridgingModule(in_dim=2048, out_dim=1024).to(DEVICE)
-    
     for param in bridging_module.parameters():
         param.requires_grad = True
 
     dataloader = DataLoader(
-        dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        collate_fn=collate_fn,
-        num_workers=0,
-        pin_memory=False
+        dataset, batch_size=BATCH_SIZE, shuffle=True,
+        collate_fn=collate_fn, num_workers=0, pin_memory=False
     )
 
-    # Only train LoRA params + bridging params
-    trainable_params = list(
-        p for p in model.parameters() if p.requires_grad
-    ) + list(bridging_module.parameters())
-
+    trainable_params = [p for p in model.parameters() if p.requires_grad] + list(bridging_module.parameters())
     optimizer = torch.optim.AdamW(trainable_params, lr=LEARNING_RATE)
     
-    steps_per_epoch = len(dataloader)
-    num_training_steps = steps_per_epoch * NUM_EPOCHS // GRADIENT_ACCUMULATION_STEPS
-    
-    from transformers import get_cosine_schedule_with_warmup
-    lr_scheduler = get_cosine_schedule_with_warmup(
-    optimizer=optimizer,
-    num_warmup_steps=WARMUP_STEPS,
-    num_training_steps=num_training_steps
+    num_training_steps = len(dataloader) * NUM_EPOCHS // GRADIENT_ACCUMULATION_STEPS
+    lr_scheduler = get_scheduler(
+        "cosine", optimizer=optimizer,
+        num_warmup_steps=WARMUP_STEPS, num_training_steps=num_training_steps
     )
-
     
     if USE_WANDB:
-        wandb.init(project="csm-finetuning", name="single-pass-lora")
+        wandb.init(project="csm-finetuning", name="csm-lora-finetune-fixed")
     
     scaler = torch.amp.GradScaler() if MIXED_PRECISION else None
     global_step = 0
-    validation_frequency = max(1, steps_per_epoch // 2)  # Validate twice per epoch
+    validation_frequency = max(1, len(dataloader) // (2 * GRADIENT_ACCUMULATION_STEPS))
+    
     model.train()
     bridging_module.train()
     
-    # Calculate initial validation loss
     logger.info("Calculating initial validation loss...")
     initial_val_loss = calculate_validation_loss(model, bridging_module, dataset, DEVICE)
     logger.info(f"Initial validation loss: {initial_val_loss:.6f}")
     
+    current_loss = 0.0
+    current_lr = LEARNING_RATE
+
     for epoch in range(NUM_EPOCHS):
         logger.info(f"Starting epoch {epoch+1}/{NUM_EPOCHS}")
         progress_bar = tqdm(total=len(dataloader), desc=f"Epoch {epoch+1}")
@@ -901,37 +915,26 @@ def finetune(model, dataset):
             try:
                 setup_model_caches(model, batch["target_tokens"].size(0))
                 
-                target_tokens = batch["target_tokens"].to(DEVICE)
-                target_masks = batch["target_masks"].to(DEVICE)
-                positions = batch["positions"].to(DEVICE)
-                
-                if target_tokens.size(1) > 128:
-                    target_tokens = target_tokens[:, :128]
-                    target_masks = target_masks[:, :128]
-                    positions = positions[:, :128]
-                
-                if MIXED_PRECISION:
-                    with torch.amp.autocast(device_type='cuda', dtype=torch.float16):
-                        loss = single_pass_forward(model, bridging_module,
-                                                   target_tokens, target_masks, positions)
+                with torch.amp.autocast(device_type=DEVICE, dtype=torch.float16, enabled=MIXED_PRECISION):
+                    loss = forward_and_loss(model, bridging_module, batch, DEVICE)
+                    if GRADIENT_ACCUMULATION_STEPS > 1:
                         loss = loss / GRADIENT_ACCUMULATION_STEPS
-                else:
-                    loss = single_pass_forward(model, bridging_module,
-                                               target_tokens, target_masks, positions)
-                    loss = loss / GRADIENT_ACCUMULATION_STEPS
-                
+
+                if torch.isnan(loss) or torch.isinf(loss):
+                    logger.warning(f"NaN or Inf loss detected at step {step}. Skipping batch.")
+                    optimizer.zero_grad()
+                    progress_bar.update(1)
+                    continue
+
                 if MIXED_PRECISION:
                     scaler.scale(loss).backward()
                 else:
                     loss.backward()
                 
-                # Update only after accumulating enough steps
-                if (step + 1) % GRADIENT_ACCUMULATION_STEPS == 0 or step == len(dataloader) - 1:
-                    # Unscale for safe grad clipping if using FP16
+                if (step + 1) % GRADIENT_ACCUMULATION_STEPS == 0 or (step + 1) == len(dataloader):
                     if MIXED_PRECISION:
                         scaler.unscale_(optimizer)
                     
-                    # Explicit gradient clipping with a variable
                     torch.nn.utils.clip_grad_norm_(trainable_params, MAX_GRAD_NORM)
                     
                     if MIXED_PRECISION:
@@ -942,102 +945,133 @@ def finetune(model, dataset):
                     
                     lr_scheduler.step()
                     optimizer.zero_grad()
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    current_loss = loss.item() * GRADIENT_ACCUMULATION_STEPS
-                    current_epoch = epoch + step / steps_per_epoch
                     
-                    # Calculate validation loss periodically
+                    current_lr = optimizer.param_groups[0]["lr"]
+                    current_loss = loss.item() * GRADIENT_ACCUMULATION_STEPS if GRADIENT_ACCUMULATION_STEPS > 1 else loss.item()
+                    current_epoch = epoch + (step + 1) / len(dataloader)
+                    
                     current_val_loss = None
-                    if global_step % validation_frequency == 0:
-                        logger.info(f"Calculating validation loss at step {global_step}...")
+                    if global_step > 0 and global_step % validation_frequency == 0:
+                        logger.info(f"Calculating validation loss at global step {global_step}...")
                         current_val_loss = calculate_validation_loss(model, bridging_module, dataset, DEVICE)
                         logger.info(f"Validation loss: {current_val_loss:.6f}")
                     
                     log_metrics(current_epoch, step, global_step, current_loss, current_lr, current_val_loss)
-
                     global_step += 1
+                    
                     if USE_WANDB:
-                        metrics_dict = {
-                            "loss": current_loss,
-                            "learning_rate": current_lr,
-                            "epoch": current_epoch,
-                            "global_step": global_step
-                        }
-                        if current_val_loss is not None:
-                            metrics_dict["val_loss"] = current_val_loss
-                        wandb.log(metrics_dict)
+                        wandb.log({"loss": current_loss, "learning_rate": current_lr, "epoch": current_epoch, "global_step": global_step, "val_loss": current_val_loss})
+                    
+                    progress_bar.set_postfix({"loss": f"{current_loss:.4f}", "lr": f"{current_lr:.2e}"})
                 
                 progress_bar.update(1)
-                progress_bar.set_postfix({"loss": loss.item() * GRADIENT_ACCUMULATION_STEPS})
             
             except Exception as e:
                 logger.error(f"Error in batch {step}: {e}")
                 import traceback
                 logger.error(traceback.format_exc())
-                
                 try:
-                    model.reset_caches()
                     optimizer.zero_grad()
                     torch.cuda.empty_cache()
-                except:
-                    pass
+                except: pass
                 progress_bar.update(1)
                 continue
         
-        # Calculate validation loss at the end of each epoch
         logger.info(f"Calculating validation loss at end of epoch {epoch+1}...")
         epoch_val_loss = calculate_validation_loss(model, bridging_module, dataset, DEVICE)
         logger.info(f"Epoch {epoch+1} validation loss: {epoch_val_loss:.6f}")
-        
-        # Log final metrics for this epoch
-        log_metrics(epoch + 1.0, steps_per_epoch, global_step, current_loss, current_lr, epoch_val_loss)
+        log_metrics(epoch + 1.0, len(dataloader), global_step, current_loss, current_lr, epoch_val_loss)
         
         checkpoint_dir = os.path.join(OUTPUT_DIR, f"checkpoint-epoch-{epoch+1}")
         os.makedirs(checkpoint_dir, exist_ok=True)
-        torch.save({
-            "model_state_dict": model.state_dict(),
-            "bridge_module_state_dict": bridging_module.state_dict(),
-            "epoch": epoch + 1,
-            "global_step": global_step,
-            "train_loss": current_loss,
-            "val_loss": epoch_val_loss,
-        }, os.path.join(checkpoint_dir, "model.safetensors"))
+
+        checkpoint_tensors = {
+            **model.state_dict(),
+            **bridging_module.state_dict()
+        }
+        save_file(checkpoint_tensors, os.path.join(checkpoint_dir, "model.safetensors"))
+
         logger.info(f"Saved checkpoint to {checkpoint_dir}")
     
-    # Final validation loss calculation
-    final_val_loss = calculate_validation_loss(model, bridging_module, dataset, DEVICE, max_samples=20)
+    final_val_loss = calculate_validation_loss(model, bridging_module, dataset, DEVICE, max_samples=100)
     logger.info(f"Final validation loss: {final_val_loss:.6f}")
     
-    # Final checkpoint with LoRA still separate
-    final_lora_path = os.path.join(OUTPUT_DIR, "model_lora.safetensors")
-    torch.save({
-        "model_state_dict": model.state_dict(),
-        "bridge_module_state_dict": bridging_module.state_dict(),
-        "final_train_loss": current_loss,
-        "final_val_loss": final_val_loss,
-    }, final_lora_path)
-    logger.info(f"Finetuning complete! LoRA-based model saved to {final_lora_path}")
-
-    # Merge all LoRA weights into the base model
     logger.info("Merging LoRA weights into the base model...")
     merge_lora_weights(model)
-
-    logger.info("Replacing LoRALinear modules with plain nn.Linear...")
     model = remove_lora_modules(model)
     merged_state = strip_bias_keys(model.state_dict())
 
-    # Now saving the final pure state_dict with no lora_* keys
     final_merged_path = os.path.join(OUTPUT_DIR, "model.safetensors")
     save_file(merged_state, final_merged_path)
     logger.info(f"LoRA-merged & replaced model saved to {final_merged_path}")
     
-    # Generate final visualization with all metrics
-    final_plot_path = visualizer.finalize()
-
+    visualizer.finalize()
     if USE_WANDB:
         wandb.finish()
     
     return model
+
+def forward_and_loss(model, bridging_module, batch, device):
+    target_tokens = batch["target_tokens"].to(device)
+    target_masks = batch["target_masks"].to(device)
+    positions = batch["positions"].to(device)
+
+    input_tokens = target_tokens[:, :-1]
+    input_masks = target_masks[:, :-1]
+    input_positions = positions[:, :-1]
+    labels = target_tokens[:, 1:]
+    label_masks = target_masks[:, 1:]
+
+    if input_tokens.size(1) == 0:
+        return torch.tensor(0.0, requires_grad=True, device=device)
+
+    # 1. Embed tokens and apply mask
+    embed = model._embed_tokens(input_tokens)
+    masked_embed = embed * input_masks.unsqueeze(-1)
+    h = masked_embed.sum(dim=2)
+
+    # 2. Pass through the backbone
+    backbone_out = model.backbone(h, input_pos=input_positions, mask=None)
+
+    # 3. Calculate loss for all codebooks
+    loss_fct = nn.CrossEntropyLoss(ignore_index=0)
+    total_loss = 0.0
+    num_codebooks_with_loss = 0
+
+    c0_logits = model.codebook0_head(backbone_out)
+    c0_labels = labels[..., 0]
+    
+    active_mask = label_masks[..., 0].view(-1)
+    if active_mask.sum() > 0:
+        active_logits = c0_logits.view(-1, c0_logits.size(-1))[active_mask]
+        active_labels = c0_labels.view(-1)[active_mask]
+        c0_loss = loss_fct(active_logits, active_labels)
+        total_loss += c0_loss
+        num_codebooks_with_loss += 1
+
+    decoder_states = bridging_module(backbone_out)
+    
+    num_codebooks = model.config.audio_num_codebooks
+    for i in range(1, num_codebooks):
+        if hasattr(model, 'audio_head') and len(model.audio_head) >= i:
+            weight_i = model.audio_head[i-1] 
+            
+            logits_i = decoder_states @ weight_i
+
+            labels_i = labels[..., i]
+            active_mask_i = label_masks[..., i].view(-1)
+
+            if active_mask_i.sum() > 0:
+                active_logits_i = logits_i.view(-1, logits_i.size(-1))[active_mask_i]
+                active_labels_i = labels_i.view(-1)[active_mask_i]
+                loss_i = loss_fct(active_logits_i, active_labels_i)
+                total_loss += loss_i
+                num_codebooks_with_loss += 1
+
+    if num_codebooks_with_loss > 0:
+        return total_loss / num_codebooks_with_loss
+    else:
+        return torch.tensor(0.0, requires_grad=True, device=device)
 
 def main():
     torch.manual_seed(SEED)
