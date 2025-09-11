@@ -106,7 +106,23 @@ def transcribe_audio_files(
                 continue
             seen_paths.add(abs_path)
 
-            audio_text_pairs.append(AudioTextPair(audio_path=audio_path, text=transcription, speaker_id=0))
+            if "Тимур".lower() in metafile_path.lower():
+                speaker_id = 0
+            elif "Айганыш".lower() in metafile_path.lower():
+                speaker_id = 1
+            else:
+                raise ValueError()
+
+            if "neutral".lower() in metafile_path.lower():
+                tone = "<neutral>"
+            elif "strict".lower() in metafile_path.lower():
+                tone = "<strict>"
+            else:
+                raise ValueError()
+
+            audio_text_pairs.append(AudioTextPair(audio_path=audio_path,
+                                                  text=tone + " " + transcription,
+                                                  speaker_id=speaker_id))
 
             if MAX_AUDIO_FILES > 0 and len(audio_text_pairs) >= MAX_AUDIO_FILES:
                 logger.info(f"Reached MAX_AUDIO_FILES limit ({MAX_AUDIO_FILES}) while reading metafile.")
