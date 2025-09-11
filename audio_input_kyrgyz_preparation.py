@@ -22,10 +22,10 @@ def transcribe_audio_files(
     base_dir: str = None,
     normalize_paths: bool = True,
 ):
-    """Create list[AudioTextPair] from metafile (path|transcription) or run ASR if no metafile.
+    """Create list[AudioTextPair] from metafile (path|transcription).
 
     Args:
-        metafile_path: Path to metafile with lines '<audio_path>|<transcription>'. If provided & exists, ASR is skipped.
+        metafile_paths: Path or list of metafiles with lines '<audio_path>|<transcription>'.
         delimiter: Delimiter separating audio path and text in metafile.
         strict: If True, raise errors on malformed lines / missing audio; else skip & warn.
         base_dir: Optional directory to prepend when relative paths (or unresolved paths) are encountered.
@@ -35,6 +35,13 @@ def transcribe_audio_files(
         list[AudioTextPair]
     """
     audio_text_pairs = []
+
+    # Ensure metafile_paths is iterable of paths
+    if metafile_paths is None:
+        logger.info("No metafile_paths provided; nothing to load.")
+        return audio_text_pairs
+    if isinstance(metafile_paths, str):
+        metafile_paths = [metafile_paths]
 
     # Metafile mode
     for metafile_path in metafile_paths:
@@ -46,7 +53,8 @@ def transcribe_audio_files(
             logger.error(f"Failed to read metafile {metafile_path}: {e}")
             if strict:
                 raise
-            return []
+            else:
+                continue
 
         seen_paths = set()
         malformed = 0
@@ -58,7 +66,7 @@ def transcribe_audio_files(
                 continue
             if delimiter not in line:
                 malformed += 1
-                msg = f"Line {idx} missing delimiter '{delimiter}': {line[:80]}";
+                msg = f"Line {idx} missing delimiter '{delimiter}': {line[:80]}"
                 if strict:
                     raise ValueError(msg)
                 logger.warning(msg)
@@ -93,7 +101,7 @@ def transcribe_audio_files(
 
             if not os.path.isfile(audio_path):
                 missing_audio += 1
-                msg = f"Audio file not found (line {idx}): {audio_path}";
+                msg = f"Audio file not found (line {idx}): {audio_path}"
                 if strict:
                     raise FileNotFoundError(msg)
                 logger.warning(msg)
@@ -129,11 +137,33 @@ def transcribe_audio_files(
                 break
 
         logger.info(
-            "Loaded %d audio-text pairs from metafile (unique). Skipped -> malformed:%d missing:%d duplicates:%d",
-            len(audio_text_pairs), malformed, missing_audio, duplicates
+            "Loaded %d audio-text pairs from %s (unique). Skipped -> malformed:%d missing:%d duplicates:%d",
+            len(audio_text_pairs), os.path.basename(metafile_path), malformed, missing_audio, duplicates
         )
-        return audio_text_pairs
+
+    return audio_text_pairs
+
+
+# ----------------- Hugging Face datasets utilities -----------------
+
+from datasets import load_dataset, concatenate_datasets
+def prepare_data(dataset_names):
+    ds1 = load_dataset(dataset_names[0], split="train")
+    ds2 = load_dataset(dataset_names[1], split="train")
+    ds3 = load_dataset(dataset_names[2], split="train")
+    ds4 = load_dataset(dataset_names[3], split="train")
+
+    ds = concatenate_datasets([ds1, ds2, ds3, ds4])
+    print(f"[INFO] Combined dataset size: {ds.num_rows}")
+
+    for row in ds:
+        print(row['text'])
 
 
 if __name__ == '__main__':
-    transcribe_audio_files()
+    dataset_names = [r"MbankAI/Timur-strict-raw-wav",
+                  r"MbankAI/Aiganish-strict-raw-wav",
+                  r"MbankAI/Timur-neutral-raw-wav",
+                  r"MbankAI/Aiganish-neutral-raw-wav"]
+
+    prepare_data(dataset_names=dataset_names)
