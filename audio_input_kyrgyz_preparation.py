@@ -118,67 +118,6 @@ def transcribe_audio_files(
         )
         return audio_text_pairs
 
-    # ASR fallback mode
-    from transformers import pipeline
 
-    cache_file = os.path.join(AUDIO_DIR, "transcription_cache.json")
-    cache = {}
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                cache = json.load(f)
-            logger.info(f"Loaded transcription cache with {len(cache)} entries")
-        except Exception as e:
-            logger.warning(f"Could not load cache file: {e}")
-            cache = {}
-
-    logger.info(f"Transcribing audio files in: {AUDIO_DIR}")
-    transcriber = pipeline("automatic-speech-recognition", model=TRANSCRIPTION_MODEL)
-
-    audio_files = glob.glob(os.path.join(AUDIO_DIR, "*.wav")) \
-                  + glob.glob(os.path.join(AUDIO_DIR, "*.mp3")) \
-                  + glob.glob(os.path.join(AUDIO_DIR, "*.flac"))
-
-    if MAX_AUDIO_FILES > 0 and len(audio_files) > MAX_AUDIO_FILES:
-        logger.info(f"Found {len(audio_files)} files, limiting to {MAX_AUDIO_FILES}")
-        audio_files = audio_files[:MAX_AUDIO_FILES]
-
-    cache_hits = 0
-    cache_misses = 0
-
-    for audio_file in tqdm(audio_files, desc="Processing audio files"):
-        try:
-            file_stat = os.stat(audio_file)
-            cache_key = f"{audio_file}_{file_stat.st_mtime}_{file_stat.st_size}"
-
-            if cache_key in cache:
-                transcription = cache[cache_key]
-                cache_hits += 1
-                logger.debug(f"Cache hit: {os.path.basename(audio_file)}")
-            else:
-                result = transcriber(
-                    audio_file,
-                    return_timestamps=True,
-                    chunk_length_s=30,
-                    stride_length_s=[6, 0],
-                    batch_size=32,
-                    generate_kwargs={"language": "<|en|>", "task": "transcribe"}
-                )
-                transcription = result.get("text", "").strip()
-                cache[cache_key] = transcription
-                cache_misses += 1
-                logger.info(f"Transcribed: {os.path.basename(audio_file)} -> {transcription}")
-
-            audio_text_pairs.append(AudioTextPair(audio_path=audio_file, text=transcription, speaker_id=0))
-        except Exception as e:
-            logger.error(f"Error processing {audio_file}: {e}")
-
-    try:
-        with open(cache_file, 'w', encoding='utf-8') as f:
-            json.dump(cache, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved transcription cache with {len(cache)} entries")
-    except Exception as e:
-        logger.error(f"Could not save cache file: {e}")
-
-    logger.info(f"Processed {len(audio_text_pairs)} audio files (Cache hits: {cache_hits}, Cache misses: {cache_misses})")
-    return audio_text_pairs
+if __name__ == '__main__':
+    transcribe_audio_files()
