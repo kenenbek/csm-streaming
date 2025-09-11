@@ -16,7 +16,7 @@ AUDIO_DIR = ""
 
 
 def transcribe_audio_files(
-    metafile_path: str = None,
+    metafile_paths: str = None,
     delimiter: str = "|",
     strict: bool = False,
     base_dir: str = None,
@@ -37,7 +37,7 @@ def transcribe_audio_files(
     audio_text_pairs = []
 
     # Metafile mode
-    if metafile_path and os.path.isfile(metafile_path):
+    for metafile_path in metafile_paths:
         logger.info(f"Loading existing transcriptions from metafile: {metafile_path}")
         try:
             with open(metafile_path, 'r', encoding='utf-8') as f:
