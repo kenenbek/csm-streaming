@@ -22,15 +22,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg') 
 import torch.nn as nn
-
-import os, glob, json
-import logging
-from tqdm import tqdm  # fixed import
-
-import pandas as pd
-from pathlib import Path
-
-
+import shutil
+import re
 
 # Setup logging
 logging.basicConfig(
@@ -67,6 +60,7 @@ MODEL_NAME = "sesame/csm-1b"
 MAX_AUDIO_FILES = 10
 R=32
 APLHA=64
+MAX_CHECKPOINTS = 5  # Keep only the last N epoch checkpoints
 
 class TrainingVisualizer:
     def __init__(self, output_dir):
@@ -811,6 +805,7 @@ def finetune(model, dataset):
             "num_epochs": NUM_EPOCHS,
             "lr": LEARNING_RATE,
             "grad_accum": GRADIENT_ACCUMULATION_STEPS,
+            "max_checkpoints": MAX_CHECKPOINTS,
         })
 
     model.train(); bridging_module.train()
@@ -885,6 +880,9 @@ def finetune(model, dataset):
         save_file(to_save, os.path.join(ckpt_dir, "model.safetensors"))
         logger.info(f"Checkpoint saved: {ckpt_dir}")
 
+        # Prune older checkpoints
+        _prune_old_checkpoints(OUTPUT_DIR, MAX_CHECKPOINTS, logger)
+
     logger.info("Merging LoRA weights into base model for final artifact...")
     merge_lora_weights(model)
     model = remove_lora_modules(model)
@@ -951,6 +949,34 @@ def forward_and_loss(model, bridging_module, batch, device):
     if num_codebooks_with_loss == 0:
         return torch.tensor(0.0, requires_grad=True, device=device)
     return total_loss / num_codebooks_with_loss
+
+def _prune_old_checkpoints(base_dir: str, max_keep: int, logger: logging.Logger):
+    if max_keep is None or max_keep <= 0:
+        return
+    if not os.path.isdir(base_dir):
+        return
+    pattern = re.compile(r"checkpoint-epoch-(\d+)$")
+    checkpoints = []
+    for name in os.listdir(base_dir):
+        full = os.path.join(base_dir, name)
+        if os.path.isdir(full):
+            m = pattern.match(name)
+            if m:
+                try:
+                    ep = int(m.group(1))
+                    checkpoints.append((ep, full))
+                except ValueError:
+                    continue
+    if len(checkpoints) <= max_keep:
+        return
+    checkpoints.sort(key=lambda x: x[0])  # oldest first
+    to_delete = checkpoints[:-max_keep]
+    for ep, path in to_delete:
+        try:
+            shutil.rmtree(path)
+            logger.info(f"Pruned old checkpoint (epoch {ep}): {path}")
+        except Exception as e:
+            logger.warning(f"Failed to delete old checkpoint {path}: {e}")
 
 def main():
     torch.manual_seed(SEED)
