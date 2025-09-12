@@ -660,7 +660,7 @@ def finetune(model, dataset):
     )
 
     if USE_WANDB:
-        wandb.init(project="csm-finetuning", name="csm-lora-finetune-fixed")
+        wandb.init(project="csm-finetuning")
 
     scaler = torch.amp.GradScaler() if MIXED_PRECISION else None
     global_step = 0
