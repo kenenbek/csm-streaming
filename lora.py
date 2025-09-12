@@ -46,7 +46,7 @@ META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 OUTPUT_DIR = "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
-BATCH_SIZE = 1
+BATCH_SIZE = 4
 GRADIENT_ACCUMULATION_STEPS = 32
 LEARNING_RATE = 2e-5
 MAX_GRAD_NORM = 0.1
@@ -59,8 +59,8 @@ WARMUP_STEPS = 50
 MODEL_NAME = "sesame/csm-1b"
 TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo"
 MAX_AUDIO_FILES = 0
-R = 64
-APLHA = 64
+R = 128
+APLHA = 128
 
 
 def prune_old_checkpoints(output_dir: str, keep: int, pattern: str = "checkpoint-epoch-") -> None:
