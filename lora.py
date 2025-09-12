@@ -35,12 +35,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-PARENT_DIR = "/mnt/c/Users/k_arzymatov/PycharmProjects/TTS-data-preparator/metadata"
+PARENT_DIR = "/home/ubuntu/TTS-data-preparator/metadata"
 SHORT_META_FILES = [
-        "Aiganysh-neutral-linux.txt",
-        "Aiganysh-strict-linux.txt",
-        "Timur-neutral-linux.txt",
-        "Timur-strict-linux.txt"
+        "Aiganysh-neutral.txt",
+        "Aiganysh-strict.txt",
+        "Timur-neutral.txt",
+        "Timur-strict.txt"
     ]
 META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 OUTPUT_DIR = "finetuned_model"
