@@ -2,10 +2,12 @@ import os, glob, json
 import logging
 from tqdm import tqdm  # fixed import
 
-from lora import AudioTextPair, TRANSCRIPTION_MODEL, MAX_AUDIO_FILES
 import pandas as pd
 from pathlib import Path
 
+MAX_AUDIO_FILES = 0
+
+from lora import AudioTextPair
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,11 +86,6 @@ def prepare_data(dataset_names):
     ds = ds.cast_column("audio", Audio(decode=False))  # don't use torchcodec
 
     for row in ds:
-        audio_text_pairs.append(AudioTextPair(audio_path=audio_path,
-                                              text=tone + " " + transcription,
-                                              speaker_id=speaker_id))
-
-    for row in ds:
         print(row['text'])
 
 
@@ -107,7 +104,11 @@ if __name__ == '__main__':
     ]
     metas = [os.path.join(parent_dir, meta) for meta in meta_files]
 
-    transcribe_audio_files(metafile_paths=metas)
+    audio_text_pairs = transcribe_audio_files(metafile_paths=metas)
 
+    for pair in audio_text_pairs:
 
-    #prepare_data(dataset_names=dataset_names)
+        try:
+            pair.load_audio()
+        except:
+            print(pair.text, pair.audio_path)

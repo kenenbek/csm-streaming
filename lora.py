@@ -23,6 +23,15 @@ import matplotlib
 matplotlib.use('Agg') 
 import torch.nn as nn
 
+import os, glob, json
+import logging
+from tqdm import tqdm  # fixed import
+
+import pandas as pd
+from pathlib import Path
+
+
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -31,25 +40,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-AUDIO_DIR = "audio_data"
+PARENT_DIR = "/mnt/c/Users/k_arzymatov/PycharmProjects/TTS-data-preparator/metadata"
+SHORT_META_FILES = [
+        "Aiganysh-neutral-linux.txt",
+        "Aiganysh-strict-linux.txt",
+        "Timur-neutral-linux.txt",
+        "Timur-strict-linux.txt"
+    ]
+META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
+
+
 OUTPUT_DIR = "finetuned_model"
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
-GRADIENT_ACCUMULATION_STEPS = 4
+GRADIENT_ACCUMULATION_STEPS = 32
 LEARNING_RATE = 2e-4
 MAX_GRAD_NORM = 0.1
 NUM_CYCLES = 1.0
-USE_WANDB = False
+USE_WANDB = True
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MIXED_PRECISION = True
 WARMUP_STEPS = 50
 SPEAKER_ID = 0
 MODEL_NAME = "sesame/csm-1b"
-TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo"
-MAX_AUDIO_FILES = 0
+MAX_AUDIO_FILES = 10
 R=32
-APLHA=32
+APLHA=64
 
 class TrainingVisualizer:
     def __init__(self, output_dir):
@@ -509,78 +526,57 @@ def collate_fn(batch):
         "positions": torch.arange(0, max_target_len).unsqueeze(0).repeat(len(batch), 1).to(device)
     }
 
-def transcribe_audio_files():
-    from transformers import pipeline
-    
-    # Cache file path
-    cache_file = os.path.join(AUDIO_DIR, "transcription_cache.json")
-    
-    # Load existing cache
-    cache = {}
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                cache = json.load(f)
-            logger.info(f"Loaded transcription cache with {len(cache)} entries")
-        except Exception as e:
-            logger.warning(f"Could not load cache file: {e}")
-            cache = {}
-    
-    logger.info(f"Transcribing audio files in: {AUDIO_DIR}")
-    transcriber = pipeline("automatic-speech-recognition", model=TRANSCRIPTION_MODEL)
+def get_speaker_name(path):
+    p = Path(path)
+    parts = p.parts  # tuple of all path components
+    # find the date folder (pattern: DD.MM.YYYY)
+    for i, part in enumerate(parts):
+        if len(part.split(".")) == 3:  # crude date detection
+            if i + 1 < len(parts):
+                return parts[i + 1]  # the folder right after the date
+    return None
+
+def transcribe_audio_files(metafile_paths: str = None):
     audio_text_pairs = []
-    
-    audio_files = glob.glob(os.path.join(AUDIO_DIR, "*.wav")) \
-        + glob.glob(os.path.join(AUDIO_DIR, "*.mp3")) \
-        + glob.glob(os.path.join(AUDIO_DIR, "*.flac"))
-    
-    if MAX_AUDIO_FILES > 0 and len(audio_files) > MAX_AUDIO_FILES:
-        logger.info(f"Found {len(audio_files)} files, limiting to {MAX_AUDIO_FILES}")
-        audio_files = audio_files[:MAX_AUDIO_FILES]
-    
-    cache_hits = 0
-    cache_misses = 0
-    
-    for audio_file in tqdm(audio_files, desc="Processing audio files"):
-        try:
-            # Create cache key using file path and modification time
-            file_stat = os.stat(audio_file)
-            cache_key = f"{audio_file}_{file_stat.st_mtime}_{file_stat.st_size}"
-            
-            # Check if transcription exists in cache
-            if cache_key in cache:
-                transcription = cache[cache_key]
-                cache_hits += 1
-                logger.debug(f"Cache hit: {os.path.basename(audio_file)}")
+
+    # Metafile mode
+    for metafile_path in metafile_paths:
+        meta_df = pd.read_csv(metafile_path, sep="|", header=None)
+
+        # Iterate over rows
+        for _, row in meta_df.iterrows():
+            local_path = row[0]
+            transcription = row[1]
+
+            # Get parent directory
+            speaker_name = get_speaker_name(local_path) # Output: Айганыш
+
+            if "Тимур" == speaker_name:
+                speaker_id = 0
+            elif "Айганыш" == speaker_name or "Айганыш" == speaker_name:
+                speaker_id = 1
             else:
-                # Transcribe the file
-                result = transcriber(audio_file, return_timestamps=True, chunk_length_s=30,
-                                   stride_length_s=[6, 0], batch_size=32,
-                                   generate_kwargs={"language": "<|en|>", "task": "transcribe"})
-                transcription = result["text"].strip()
-                
-                # Save to cache
-                cache[cache_key] = transcription
-                cache_misses += 1
-                logger.info(f"Transcribed: {os.path.basename(audio_file)} -> {transcription}")
-            
-            audio_text_pairs.append(
-                AudioTextPair(audio_path=audio_file, text=transcription, speaker_id=0)
-            )
-            
-        except Exception as e:
-            logger.error(f"Error processing {audio_file}: {e}")
-    
-    # Save updated cache
-    try:
-        with open(cache_file, 'w', encoding='utf-8') as f:
-            json.dump(cache, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved transcription cache with {len(cache)} entries")
-    except Exception as e:
-        logger.error(f"Could not save cache file: {e}")
-    
-    logger.info(f"Processed {len(audio_text_pairs)} audio files (Cache hits: {cache_hits}, Cache misses: {cache_misses})")
+                print(speaker_name)
+                print(local_path)
+                raise ValueError()
+
+            if "neutral".lower() in metafile_path.lower():
+                tone = "<neutral>"
+            elif "strict".lower() in metafile_path.lower():
+                tone = "<strict>"
+            else:
+                raise ValueError()
+
+            audio_text_pairs.append(AudioTextPair(audio_path=local_path,
+                                                  text=tone + " " + transcription,
+                                                  speaker_id=speaker_id))
+
+            if MAX_AUDIO_FILES > 0 and len(audio_text_pairs) >= MAX_AUDIO_FILES:
+                logger.info(f"Reached MAX_AUDIO_FILES limit ({MAX_AUDIO_FILES}) while reading metafile.")
+                break
+
     return audio_text_pairs
+
 
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
@@ -1085,9 +1081,9 @@ def main():
         torch.backends.cudnn.benchmark = True
     
     model, text_tokenizer, audio_tokenizer = prepare_csm_model_for_training()
-    audio_text_pairs = transcribe_audio_files()
+    audio_text_pairs = transcribe_audio_files(metafile_paths=META_FILES)
     if not audio_text_pairs:
-        logger.error(f"No audio files found or transcribed in {AUDIO_DIR}")
+        logger.error(f"No audio files found or transcribed in {META_FILES}")
         return
     
     dataset = CSMDataset(
