@@ -44,7 +44,7 @@ META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 
 
 OUTPUT_DIR = "finetuned_model"
-NUM_EPOCHS = 10
+NUM_EPOCHS = 3
 BATCH_SIZE = 1
 GRADIENT_ACCUMULATION_STEPS = 32
 LEARNING_RATE = 2e-4
@@ -751,6 +751,48 @@ def single_pass_forward(model, bridging_module, target_tokens, target_masks, pos
     )
     
     return loss
+
+# === LoRA utility helpers (restored) ===
+
+def merge_lora_layer(lora_module: LoRALinear):
+    """Merge LoRA low-rank adaptation into the frozen base weight in-place."""
+    with torch.no_grad():
+        delta = lora_module.scaling * (lora_module.lora_B @ lora_module.lora_A)
+        lora_module.weight.data += delta
+        # Zero out LoRA params so they no longer have effect (optional safety)
+        lora_module.lora_A.zero_()
+        lora_module.lora_B.zero_()
+
+def merge_lora_weights(model: nn.Module) -> nn.Module:
+    for m in model.modules():
+        if isinstance(m, LoRALinear):
+            merge_lora_layer(m)
+    return model
+
+def remove_lora_modules(module: nn.Module) -> nn.Module:
+    """Replace LoRALinear layers with plain nn.Linear containing merged weights."""
+    for name, child in list(module.named_children()):
+        new_child = remove_lora_modules(child)
+        setattr(module, name, new_child)
+    if isinstance(module, LoRALinear):
+        linear = nn.Linear(module.in_features, module.out_features, bias=(module.bias is not None))
+        with torch.no_grad():
+            linear.weight.copy_(module.weight)
+            if module.bias is not None:
+                linear.bias.copy_(module.bias)
+        return linear
+    return module
+
+def strip_bias_keys(state_dict: dict) -> dict:
+    """Optionally drop bias terms for smaller adapter checkpoint (and training-only embeddings)."""
+    cleaned = {}
+    for k, v in state_dict.items():
+        if k == "codebook_embedding.weight":  # skip runtime-added embedding if not needed
+            continue
+        if k.endswith('.bias'):
+            continue
+        cleaned[k] = v
+    return cleaned
 
 def finetune(model, dataset):
     """Pure training loop (no validation)."""
