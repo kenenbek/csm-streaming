@@ -501,7 +501,7 @@ def compute_loss_for_codebooks_single_pass(
     # codebooks [1..N-1] from decoder_out
     for i in range(1, num_codebooks):
         weight_i = model.audio_head[i - 1]
-        flat_dec = decoder_out.view(bsz * seq_len, -1)
+        flat_dec = decoder_out.reshape(bsz * seq_len, -1)
         token_logits_all = flat_dec.mm(weight_i)
 
         for b in range(bsz):
@@ -545,13 +545,13 @@ def single_pass_forward(model, bridging_module, target_tokens, target_masks, pos
     B, S, D = decoder_input.shape  # Batch, Sequence length, Dimension
 
     # Reshape to (B*S, D) to process all tokens in parallel
-    decoder_input_flat = decoder_input.view(-1, D).unsqueeze(1)  # [B*S, 1, D]
+    decoder_input_flat = decoder_input.reshape(-1, D).unsqueeze(1)  # [B*S, 1, D] safer than view
 
     # Run decoder on all inputs in parallel
     decoder_out_flat = model.decoder(decoder_input_flat).to(dtype)  # [B*S, 1, output_dim]
 
     # Reshape back to original batch and sequence dimensions
-    decoder_out = decoder_out_flat.view(B, S, -1)  # [B, S, output_dim]
+    decoder_out = decoder_out_flat.reshape(B, S, -1)  # [B, S, output_dim]
 
     # Remove the first token (corresponding to last_h) as in original code
     decoder_out = decoder_out[:, 1:, :]  # [B, T, 1024]
@@ -791,40 +791,40 @@ def forward_and_loss(model, bridging_module, batch, device):
     total_loss = 0.0
     num_codebooks_with_loss = 0
 
-    c0_logits = model.codebook0_head(backbone_out)
-    c0_labels = labels[..., 0]
+    c0_logits = model.codebook0_head(backbone_out)  # [B, T, V0]
+    c0_labels = labels[..., 0]                     # [B, T]
+    active_mask = label_masks[..., 0].reshape(-1)   # flatten safely
 
-    active_mask = label_masks[..., 0].view(-1)
-    if active_mask.sum() > 0:
-        active_logits = c0_logits.view(-1, c0_logits.size(-1))[active_mask]
-        active_labels = c0_labels.view(-1)[active_mask]
+    if active_mask.any():
+        flat_c0_logits = c0_logits.reshape(-1, c0_logits.size(-1))
+        flat_c0_labels = c0_labels.reshape(-1)
+        active_logits = flat_c0_logits[active_mask]
+        active_labels = flat_c0_labels[active_mask]
         c0_loss = loss_fct(active_logits, active_labels)
         total_loss += c0_loss
         num_codebooks_with_loss += 1
 
-    decoder_states = bridging_module(backbone_out)
+    decoder_states = bridging_module(backbone_out)  # [B, T, D]
 
     num_codebooks = model.config.audio_num_codebooks
     for i in range(1, num_codebooks):
         if hasattr(model, 'audio_head') and len(model.audio_head) >= i:
             weight_i = model.audio_head[i - 1]
-
-            logits_i = decoder_states @ weight_i
-
+            logits_i = decoder_states @ weight_i  # [B, T, V_i]
             labels_i = labels[..., i]
-            active_mask_i = label_masks[..., i].view(-1)
-
-            if active_mask_i.sum() > 0:
-                active_logits_i = logits_i.view(-1, logits_i.size(-1))[active_mask_i]
-                active_labels_i = labels_i.view(-1)[active_mask_i]
+            active_mask_i = label_masks[..., i].reshape(-1)
+            if active_mask_i.any():
+                flat_logits_i = logits_i.reshape(-1, logits_i.size(-1))
+                flat_labels_i = labels_i.reshape(-1)
+                active_logits_i = flat_logits_i[active_mask_i]
+                active_labels_i = flat_labels_i[active_mask_i]
                 loss_i = loss_fct(active_logits_i, active_labels_i)
                 total_loss += loss_i
                 num_codebooks_with_loss += 1
 
     if num_codebooks_with_loss > 0:
         return total_loss / num_codebooks_with_loss
-    else:
-        return torch.tensor(0.0, requires_grad=True, device=device)
+    return torch.tensor(0.0, requires_grad=True, device=device)
 
 
 def main():
