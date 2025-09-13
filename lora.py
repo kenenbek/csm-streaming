@@ -45,9 +45,9 @@ SHORT_META_FILES = [
 META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 OUTPUT_DIR = "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS = 5
-NUM_EPOCHS = 10
-BATCH_SIZE = 4
-GRADIENT_ACCUMULATION_STEPS = 32
+NUM_EPOCHS = 50
+BATCH_SIZE = 16
+GRADIENT_ACCUMULATION_STEPS = 8
 LEARNING_RATE = 2e-5
 MAX_GRAD_NORM = 0.1
 NUM_CYCLES = 1.0
@@ -205,12 +205,8 @@ class AudioTextPair:
     audio_path: str
     text: str
     speaker_id: int
-    processed_audio: Optional[torch.Tensor] = None
 
     def load_audio(self, sample_rate=24000) -> torch.Tensor:
-        if self.processed_audio is not None:
-            return self.processed_audio
-
         waveform, sr = torchaudio.load(self.audio_path)
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
@@ -219,8 +215,8 @@ class AudioTextPair:
             waveform = resampler(waveform)
         waveform = waveform / (torch.max(torch.abs(waveform)) + 1e-8)
 
-        self.processed_audio = waveform.squeeze(0)
-        return self.processed_audio
+        processed_audio = waveform.squeeze(0)
+        return processed_audio
 
 
 class CSMDataset(Dataset):
