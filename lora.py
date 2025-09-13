@@ -419,7 +419,13 @@ def prepare_csm_model_for_training():
         model.config.__class__.get = get_method
     if not hasattr(model.config, 'tie_word_embeddings'):
         model.config.tie_word_embeddings = False
-    target_layers = ['q_proj', 'k_proj', 'v_proj', 'o_proj', "down_proj", "up_proj"]
+    target_layers = ['q_proj',
+                     'k_proj',
+                     'v_proj',
+                     'output_proj',
+                     "w1",
+                     "w2",
+                     "w3"]
     logger.info("Applying LoRA to model...")
     model = replace_linear_with_lora(
         model,
