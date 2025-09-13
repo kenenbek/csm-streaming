@@ -1,10 +1,10 @@
-from transformers import AutoModel
+from models import Model
 import torch
 import torch.nn as nn
 
 
 def print_lora_trainable_layers(model_name, target_layer_names=None):
-    model = AutoModel.from_pretrained(model_name)
+    model = Model.from_pretrained(model_name)
     print(f"Model: {model_name}")
     print("LoRA-trainable layers (nn.Linear):")
     for name, module in model.named_modules():
