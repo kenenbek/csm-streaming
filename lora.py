@@ -680,7 +680,7 @@ def finetune(model, dataset):
         for step, batch in enumerate(dataloader):
             try:
                 setup_model_caches(model, batch["target_tokens"].size(0))
-
+                logger.info(f"Actual batch size: {batch['target_tokens'].size(0)}")
                 with torch.amp.autocast(device_type=DEVICE, dtype=torch.float16, enabled=MIXED_PRECISION):
                     loss = forward_and_loss(model, bridging_module, batch, DEVICE)
                     if GRADIENT_ACCUMULATION_STEPS > 1:
