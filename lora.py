@@ -45,9 +45,9 @@ SHORT_META_FILES = [
 META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 OUTPUT_DIR = "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS = 5
-NUM_EPOCHS = 50
+NUM_EPOCHS = 10
 BATCH_SIZE = 16
-GRADIENT_ACCUMULATION_STEPS = 1
+GRADIENT_ACCUMULATION_STEPS = 8
 LEARNING_RATE = 2e-5
 MAX_GRAD_NORM = 0.1
 NUM_CYCLES = 1.0
@@ -59,8 +59,8 @@ WARMUP_STEPS = 50
 MODEL_NAME = "sesame/csm-1b"
 TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo"
 MAX_AUDIO_FILES = 0
-R = 128
-APLHA = 128
+R = 512
+APLHA = 512
 
 
 def prune_old_checkpoints(output_dir: str, keep: int, pattern: str = "checkpoint-epoch-") -> None:
@@ -680,7 +680,6 @@ def finetune(model, dataset):
         for step, batch in enumerate(dataloader):
             try:
                 setup_model_caches(model, batch["target_tokens"].size(0))
-                logger.info(f"Actual batch size: {batch['target_tokens'].size(0)}")
                 with torch.amp.autocast(device_type=DEVICE, dtype=torch.float16, enabled=MIXED_PRECISION):
                     loss = forward_and_loss(model, bridging_module, batch, DEVICE)
                     if GRADIENT_ACCUMULATION_STEPS > 1:
