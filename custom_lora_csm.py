@@ -12,7 +12,8 @@ from huggingface_hub import hf_hub_download
 from tokenizers.processors import TemplateProcessing
 
 from peft import get_peft_model, LoraConfig, TaskType
-from lora import transcribe_audio_files, CSMDataset
+from lora import transcribe_audio_files
+from torch.utils.data import Dataset, DataLoader
 
 
 # Setup logging
@@ -47,15 +48,34 @@ ALPHA = 64
 LORA_DROPOUT = 0.05
 
 
-class CSMDatasetHF(CSMDataset):
+class CSMDataset(Dataset):
+    def __init__(self, data_items, processor):
+        self.data_items = data_items
+        self.processor = processor
+        self.sample_rate = processor.sample_rate
+
+    def __len__(self):
+        return len(self.data_items)
 
     def __getitem__(self, idx: int):
-        single_data = super().__getitem__(idx)
-        return {
-                "input_ids": single_data["input_tokens"],
-                "attention_mask": single_data["input_masks"],
-                "labels": single_data["target_tokens"]
-                }
+        item = self.data_items[idx]
+        audio = item.load_audio(self.sample_rate)
+
+        conversation = [
+            {
+                "role": f"{item.speaker_id}",
+                "content": [{"type": "text", "text": item.text}, {"type": "audio", "path": audio}],
+            }
+        ]
+
+        inputs = self.processor.apply_chat_template(
+            conversation,
+            tokenize=True,
+            return_dict=True,
+            output_labels=True,
+        )
+
+        return inputs
 
 def load_llama3_tokenizer():
     tokenizer_name = "unsloth/Llama-3.2-1B"
