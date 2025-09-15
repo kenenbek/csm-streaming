@@ -110,6 +110,7 @@ def prepare_csm_model_for_training():
         r=R,
         lora_alpha=ALPHA,
         target_modules=['q_proj', 'k_proj', 'v_proj', 'output_proj', "w1", "w2", "w3"],
+        modules_to_save=["projection", "codebook0_head"],
         lora_dropout=LORA_DROPOUT,
         bias="all",
         task_type=TaskType.CAUSAL_LM,
