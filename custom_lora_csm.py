@@ -69,6 +69,7 @@ class CSMDataset(Dataset):
         )
 
         print("--- Shapes of Tensors in 'inputs' ---")
+        print(type(inputs))
         for key, value in inputs.items():
             # Check if the value is a tensor, as the dict might contain other info
             if hasattr(value, 'shape'):
