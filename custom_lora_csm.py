@@ -3,7 +3,7 @@ import os
 import torch
 import logging
 import numpy as np
-from transformers import AutoModelForCausalLM, Trainer, TrainingArguments, AutoTokenizer
+from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoTokenizer
 from tqdm import tqdm
 import wandb
 from models import Model
@@ -62,7 +62,7 @@ def load_llama3_tokenizer():
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
     # model = Model.from_pretrained(MODEL_NAME).to(DEVICE)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
+    model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 
     # # Some fallback logic for config
     # if not hasattr(model.config, 'get'):
