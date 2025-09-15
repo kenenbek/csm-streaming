@@ -60,7 +60,7 @@ class CSMDataset(Dataset):
     def __getitem__(self, idx: int):
         item = self.data_items[idx]
         audio = item.load_audio(self.sample_rate)
-
+        print("audio have shape: ", audio.shape)
         inputs = self.processor(
             text=[f"<|begin_of_text|>[{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>"],
             audio=audio,
