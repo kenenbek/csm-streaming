@@ -65,9 +65,17 @@ class CSMDataset(Dataset):
             text=[f"<|begin_of_text|>[{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>"],
             audio=audio,
             output_labels=True,
+            text_kwargs={"padding": True},
             audio_kwargs = {"sampling_rate": self.sample_rate},
             common_kwargs = {"return_tensors": "pt"},
         )
+
+        print("--- Shapes of Tensors in 'inputs' ---")
+        for key, value in inputs.items():
+            # Check if the value is a tensor, as the dict might contain other info
+            if hasattr(value, 'shape'):
+                print(f"{key}: {value.shape}")
+        print("-------------------------------------\n")
 
         return inputs
 
