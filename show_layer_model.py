@@ -18,7 +18,7 @@ conversation = [
     {
         "role": f"{audio_text_pairs[0].speaker_id}",
         "content": [{"type": "text", "text": audio_text_pairs[0].text},
-                    {"type": "audio", "path": audio_text_pairs[0].audio}],
+                    {"type": "audio", "path": audio_text_pairs[0].audio_path}],
     }
 ]
 
