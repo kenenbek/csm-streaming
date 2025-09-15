@@ -61,16 +61,17 @@ def load_llama3_tokenizer():
 
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
-    model = Model.from_pretrained(MODEL_NAME).to(DEVICE)
+    # model = Model.from_pretrained(MODEL_NAME).to(DEVICE)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 
-    # Some fallback logic for config
-    if not hasattr(model.config, 'get'):
-        def get_method(self, key, default=None):
-            if hasattr(self, key):
-                return getattr(self, key)
-            return default
-
-        model.config.__class__.get = get_method
+    # # Some fallback logic for config
+    # if not hasattr(model.config, 'get'):
+    #     def get_method(self, key, default=None):
+    #         if hasattr(self, key):
+    #             return getattr(self, key)
+    #         return default
+    #
+    #     model.config.__class__.get = get_method
 
     text_tokenizer = load_llama3_tokenizer()
     mimi_weight = hf_hub_download(loaders.DEFAULT_REPO, loaders.MIMI_NAME)
