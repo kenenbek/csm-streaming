@@ -62,7 +62,7 @@ class CSMDataset(Dataset):
         audio = item.load_audio(self.sample_rate)
 
         inputs = self.processor(
-            text=["<|begin_of_text|>[0]What are you working on?<|end_of_text|><|AUDIO|><|audio_eos|><|begin_of_text|>[1]I'm figuring out my budget.<|end_of_text|>"],
+            text=[f"<|begin_of_text|>[f{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>"],
             audio=audio,
             audio_kwargs = {"sampling_rate": self.sample_rate},
             common_kwargs = {"return_tensors": "pt"},
