@@ -64,6 +64,26 @@ def prepare_csm_model_for_training():
     # model = Model.from_pretrained(MODEL_NAME).to(DEVICE)
     model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 
+    # python
+    import inspect
+
+    # assume `model` is your loaded model
+    sig = inspect.signature(model.forward)
+    print("forward signature:", sig)
+
+    for name, param in sig.parameters.items():
+        default = "<no default>" if param.default is inspect._empty else param.default
+        print(f"- {name}: kind={param.kind}, default={default}")
+
+    accepted_kwargs = [
+        n for n, p in sig.parameters.items()
+        if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    ]
+    print("accepted keyword arguments:", accepted_kwargs)
+
+    # optional: show docstring for more details
+    print("\nforward docstring:\n", inspect.getdoc(model.forward) or "<no docstring>")
+
     # # Some fallback logic for config
     # if not hasattr(model.config, 'get'):
     #     def get_method(self, key, default=None):
