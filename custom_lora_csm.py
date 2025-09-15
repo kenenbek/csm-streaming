@@ -36,7 +36,7 @@ OUTPUT_DIR = "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
-GRADIENT_ACCUMULATION_STEPS = 16
+GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 5e-5
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -62,7 +62,6 @@ class CSMDataset(Dataset):
         audio = item.load_audio(self.sample_rate)
         print("audio have shape: ", audio.shape)
         print(self.processor.feature_extractor)
-        print(self.processor.tokenizer)
         inputs = self.processor(
             text=[f"<|begin_of_text|>[{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>"],
             audio=audio,
