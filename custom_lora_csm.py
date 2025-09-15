@@ -124,7 +124,7 @@ def main():
         audio_text_pairs,
         text_tokenizer=text_tokenizer,
         audio_tokenizer=audio_tokenizer,
-        device=DEVICE
+        device="cpu"
     )
 
     logger.info(f"Dataset created with {len(dataset)} samples")
@@ -160,12 +160,6 @@ def main():
         args=training_args,
         train_dataset=dataset,
     )
-
-    # dataloader = trainer.get_train_dataloader()
-    # batch = next(iter(dataloader))
-    # print("Dataloader batch keys and shapes:")
-    # for k, v in batch.items():
-    #     print(f"  {k}: {v.shape}")
 
     trainer.train()
 
