@@ -3,7 +3,7 @@ import os
 import torch
 import logging
 import numpy as np
-from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoTokenizer
+from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor
 from tqdm import tqdm
 import wandb
 from models import Model
@@ -52,7 +52,7 @@ class CSMDataset(Dataset):
     def __init__(self, data_items, processor):
         self.data_items = data_items
         self.processor = processor
-        self.sample_rate = processor.sample_rate
+        self.sample_rate = processor.feature_extractor.sampling_rate
 
     def __len__(self):
         return len(self.data_items)
@@ -92,14 +92,9 @@ def load_llama3_tokenizer():
 
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
-    # model = Model.from_pretrained(MODEL_NAME).to(DEVICE)
-    model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 
-    text_tokenizer = load_llama3_tokenizer()
-    mimi_weight = hf_hub_download(loaders.DEFAULT_REPO, loaders.MIMI_NAME)
-    mimi = loaders.get_mimi(mimi_weight, device=DEVICE)
-    mimi.set_num_codebooks(32)
-    audio_tokenizer = mimi
+    processor = AutoProcessor.from_pretrained(MODEL_NAME)
+    model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 
     logger.info("Applying LoRA to model using PEFT...")
 
@@ -120,7 +115,7 @@ def prepare_csm_model_for_training():
     # You can print the trainable parameters to verify
     model.print_trainable_parameters()
 
-    return model, text_tokenizer, audio_tokenizer
+    return model, processor
 
 
 def main():
@@ -134,7 +129,7 @@ def main():
     if DEVICE == "cuda":
         torch.backends.cudnn.benchmark = True
 
-    model, text_tokenizer, audio_tokenizer = prepare_csm_model_for_training()
+    model, processor = prepare_csm_model_for_training()
     audio_text_pairs = transcribe_audio_files(metafile_paths=META_FILES)
     if not audio_text_pairs:
         logger.error(f"No audio files found or transcribed in {META_FILES}")
@@ -142,9 +137,7 @@ def main():
 
     dataset = CSMDataset(
         audio_text_pairs,
-        text_tokenizer=text_tokenizer,
-        audio_tokenizer=audio_tokenizer,
-        device="cpu"
+        processor=processor,
     )
 
     logger.info(f"Dataset created with {len(dataset)} samples")
