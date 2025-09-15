@@ -61,18 +61,11 @@ class CSMDataset(Dataset):
         item = self.data_items[idx]
         audio = item.load_audio(self.sample_rate)
 
-        conversation = [
-            {
-                "role": f"{item.speaker_id}",
-                "content": [{"type": "text", "text": item.text}, {"type": "audio", "path": audio.numpy()}],
-            }
-        ]
-
-        inputs = self.processor.apply_chat_template(
-            conversation,
-            tokenize=True,
-            return_dict=True,
-            output_labels=True,
+        inputs = self.processor(
+            text=["<|begin_of_text|>[0]What are you working on?<|end_of_text|><|AUDIO|><|audio_eos|><|begin_of_text|>[1]I'm figuring out my budget.<|end_of_text|>"],
+            audio=audio,
+            audio_kwargs = {"sampling_rate": self.sample_rate},
+            common_kwargs = {"return_tensors": "pt"},
         )
 
         print("--- Shapes of Tensors in 'inputs' ---")
