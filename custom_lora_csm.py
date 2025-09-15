@@ -61,6 +61,10 @@ class CSMDataset(Dataset):
         item = self.data_items[idx]
         audio = item.load_audio(self.sample_rate)
 
+        print(type(audio), audio.shape)
+        print(type(audio), audio.shape)
+        print(type(audio), audio.shape)
+        print(type(audio), audio.shape)
         conversation = [
             {
                 "role": f"{item.speaker_id}",
