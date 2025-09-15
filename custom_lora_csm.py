@@ -62,7 +62,7 @@ class CSMDataset(Dataset):
         audio = item.load_audio(self.sample_rate)
 
         inputs = self.processor(
-            text=[f"<|begin_of_text|>[f{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>"],
+            text=[f"<|begin_of_text|>[{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>"],
             audio=audio,
             audio_kwargs = {"sampling_rate": self.sample_rate},
             common_kwargs = {"return_tensors": "pt"},
@@ -113,7 +113,7 @@ def prepare_csm_model_for_training():
     # Create the PeftModel
     model = get_peft_model(model, peft_config)
 
-    # You can print the trainable parameters to verify
+    # Print trainable parameters
     model.print_trainable_parameters()
 
     return model, processor
