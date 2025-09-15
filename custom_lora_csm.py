@@ -75,6 +75,13 @@ class CSMDataset(Dataset):
             output_labels=True,
         )
 
+        print("--- Shapes of Tensors in 'inputs' ---")
+        for key, value in inputs.items():
+            # Check if the value is a tensor, as the dict might contain other info
+            if hasattr(value, 'shape'):
+                print(f"{key}: {value.shape}")
+        print("-------------------------------------\n")
+
         return inputs
 
 def load_llama3_tokenizer():
