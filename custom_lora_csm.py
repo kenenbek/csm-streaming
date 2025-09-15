@@ -161,11 +161,11 @@ def main():
         train_dataset=dataset,
     )
 
-    dataloader = trainer.get_train_dataloader()
-    batch = next(iter(dataloader))
-    print("Dataloader batch keys and shapes:")
-    for k, v in batch.items():
-        print(f"  {k}: {v.shape}")
+    # dataloader = trainer.get_train_dataloader()
+    # batch = next(iter(dataloader))
+    # print("Dataloader batch keys and shapes:")
+    # for k, v in batch.items():
+    #     print(f"  {k}: {v.shape}")
 
     trainer.train()
 
