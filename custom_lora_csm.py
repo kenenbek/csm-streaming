@@ -46,6 +46,17 @@ R = 64
 ALPHA = 64
 LORA_DROPOUT = 0.05
 
+
+class CSMDatasetHF(CSMDataset):
+
+    def __getitem__(self, idx: int):
+        single_data = super().__getitem__(idx)
+        return {
+                "input_ids": single_data["input_tokens"],
+                "attention_mask": single_data["input_masks"],
+                "labels": single_data["target_tokens"]
+                }
+
 def load_llama3_tokenizer():
     tokenizer_name = "unsloth/Llama-3.2-1B"
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
@@ -63,35 +74,6 @@ def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
     # model = Model.from_pretrained(MODEL_NAME).to(DEVICE)
     model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
-
-    # python
-    import inspect
-
-    # assume `model` is your loaded model
-    sig = inspect.signature(model.forward)
-    print("forward signature:", sig)
-
-    for name, param in sig.parameters.items():
-        default = "<no default>" if param.default is inspect._empty else param.default
-        print(f"- {name}: kind={param.kind}, default={default}")
-
-    accepted_kwargs = [
-        n for n, p in sig.parameters.items()
-        if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
-    ]
-    print("accepted keyword arguments:", accepted_kwargs)
-
-    # optional: show docstring for more details
-    print("\nforward docstring:\n", inspect.getdoc(model.forward) or "<no docstring>")
-
-    # # Some fallback logic for config
-    # if not hasattr(model.config, 'get'):
-    #     def get_method(self, key, default=None):
-    #         if hasattr(self, key):
-    #             return getattr(self, key)
-    #         return default
-    #
-    #     model.config.__class__.get = get_method
 
     text_tokenizer = load_llama3_tokenizer()
     mimi_weight = hf_hub_download(loaders.DEFAULT_REPO, loaders.MIMI_NAME)
