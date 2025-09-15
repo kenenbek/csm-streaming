@@ -80,18 +80,6 @@ class CSMDataset(Dataset):
 
         return inputs
 
-def load_llama3_tokenizer():
-    tokenizer_name = "unsloth/Llama-3.2-1B"
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-    bos = tokenizer.bos_token
-    eos = tokenizer.eos_token
-    tokenizer._tokenizer.post_processor = TemplateProcessing(
-        single=f"{bos}:0 $A:0 {eos}:0",
-        pair=f"{bos}:0 $A:0 {eos}:0 {bos}:1 $B:1 {eos}:1",
-        special_tokens=[(bos, tokenizer.bos_token_id), (eos, tokenizer.eos_token_id)],
-    )
-    return tokenizer
-
 
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
@@ -99,25 +87,25 @@ def prepare_csm_model_for_training():
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
     model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
 
-    logger.info("Applying LoRA to model using PEFT...")
-
-    # Define the LoRA configuration using LoraConfig
-    peft_config = LoraConfig(
-        r=R,
-        lora_alpha=ALPHA,
-        target_modules=['q_proj', 'k_proj', 'v_proj', 'output_proj', "w1", "w2", "w3"],
-        modules_to_save=["projection", "codebook0_head"],
-        lora_dropout=LORA_DROPOUT,
-        bias="all",
-        task_type=TaskType.CAUSAL_LM,
-        use_rslora=True,
-    )
-
-    # Create the PeftModel
-    model = get_peft_model(model, peft_config)
-
-    # Print trainable parameters
-    model.print_trainable_parameters()
+    # logger.info("Applying LoRA to model using PEFT...")
+    #
+    # # Define the LoRA configuration using LoraConfig
+    # peft_config = LoraConfig(
+    #     r=R,
+    #     lora_alpha=ALPHA,
+    #     target_modules=['q_proj', 'k_proj', 'v_proj', 'output_proj', "w1", "w2", "w3"],
+    #     modules_to_save=["projection", "codebook0_head"],
+    #     lora_dropout=LORA_DROPOUT,
+    #     bias="all",
+    #     task_type=TaskType.CAUSAL_LM,
+    #     use_rslora=True,
+    # )
+    #
+    # # Create the PeftModel
+    # model = get_peft_model(model, peft_config)
+    #
+    # # Print trainable parameters
+    # model.print_trainable_parameters()
 
     return model, processor
 
