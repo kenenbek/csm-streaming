@@ -58,7 +58,7 @@ MIXED_PRECISION = True
 WARMUP_STEPS = 50
 MODEL_NAME = "sesame/csm-1b"
 TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo"
-MAX_AUDIO_FILES = 0
+MAX_AUDIO_FILES = 1
 R = 512
 APLHA = 512
 
