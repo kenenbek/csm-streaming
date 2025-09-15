@@ -120,7 +120,7 @@ def main():
         logger.error(f"No audio files found or transcribed in {META_FILES}")
         return
 
-    dataset = CSMDataset(
+    dataset = CSMDatasetHF(
         audio_text_pairs,
         text_tokenizer=text_tokenizer,
         audio_tokenizer=audio_tokenizer,
