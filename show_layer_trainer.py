@@ -87,6 +87,17 @@ def main():
         print(f"{k}: {v.shape}")
     print("----------------------------------------------------------\n")
 
+    # Manual forward after one optimization step
+    manual_inputs = dataset[0]
+    # Add batch dimension manually to mirror Trainer stacking
+    manual_inputs_batched = {k: v.unsqueeze(0).to(model.device) for k, v in manual_inputs.items()}
+    with torch.no_grad():
+        sig = inspect.signature(model.forward)
+        filtered = {k: v for k, v in manual_inputs_batched.items() if k in sig.parameters}
+        manual_out = model(**filtered)
+
+    print(f"Manual single forward loss: {manual_out.loss.item():.6f}")
+
     training_args = TrainingArguments(
         output_dir="trainer_csm_output",
         per_device_train_batch_size=1,
@@ -114,14 +125,6 @@ def main():
     trainer.log_metrics("train", train_result.metrics)
     trainer.save_metrics("train", train_result.metrics)
 
-    # Manual forward after one optimization step
-    manual_inputs = dataset[0]
-    # Add batch dimension manually to mirror Trainer stacking
-    manual_inputs_batched = {k: v.unsqueeze(0).to(model.device) for k, v in manual_inputs.items()}
-    with torch.no_grad():
-        sig = inspect.signature(model.forward)
-        filtered = {k: v for k, v in manual_inputs_batched.items() if k in sig.parameters}
-        manual_out = model(**filtered)
 
     print("\n--- Comparison ---")
     print(f"Trainer final loss (last logged): {train_result.training_loss}")
