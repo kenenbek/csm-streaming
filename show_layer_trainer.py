@@ -1,5 +1,5 @@
 import inspect
-from typing import List, Any, Dict
+from typing import List, Any
 
 import torch
 from torch.utils.data import Dataset
@@ -8,7 +8,6 @@ from transformers import (
     AutoProcessor,
     TrainingArguments,
     Trainer,
-    infer_device,
 )
 
 from lora import transcribe_audio_files, META_FILES
@@ -20,7 +19,8 @@ Tokenization now happens inside the Dataset.__getitem__, returning a dict of ten
 """
 
 model_id = "sesame/csm-1b"
-device = infer_device()
+# Fallback device selection (infer_device not present in this transformers version)
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 # ---------------------------- Dataset ---------------------------------
@@ -55,7 +55,7 @@ class ConversationDataset(Dataset):
 
 # --------------------------- Trainer -----------------------------------
 class CSMTrainer(Trainer):
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         # Move tensors to model device (batch_size=1 so cheap)
         for k, v in list(inputs.items()):
             if torch.is_tensor(v) and v.device != model.device:
@@ -70,7 +70,8 @@ class CSMTrainer(Trainer):
 
 def main():
     processor = AutoProcessor.from_pretrained(model_id)
-    model = CsmForConditionalGeneration.from_pretrained(model_id, device_map=device)
+    model = CsmForConditionalGeneration.from_pretrained(model_id)
+    model.to(device)
     model.train()
     if hasattr(model, "codec_model"):
         model.codec_model.eval()
@@ -125,7 +126,6 @@ def main():
     print(f"Trainer final loss (last logged): {train_result.training_loss}")
     print(f"Manual single forward loss: {manual_out.loss.item():.6f}")
     print("A difference is expected because weights updated once before manual forward.")
-
 
 
 if __name__ == "__main__":
