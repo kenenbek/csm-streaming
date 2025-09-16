@@ -101,11 +101,6 @@ def prepare_csm_model_for_training():
 
     logger.info("Applying LoRA to model using PEFT...")
 
-    # NOTE: Removed 'embed_tokens' from modules_to_save because it's 4-bit quantized (int/packed) and
-    # cannot require gradients directly. If you want to train embeddings, first dequantize:
-    # emb = model.get_input_embeddings(); emb.weight = torch.nn.Parameter(emb.weight.float())
-    # then include 'embed_tokens' in modules_to_save.
-
     peft_config = LoraConfig(
         r=R,
         lora_alpha=ALPHA,
@@ -113,9 +108,7 @@ def prepare_csm_model_for_training():
             'q_proj', 'k_proj', 'v_proj', 'o_proj', 'output_proj',
             'up_proj', 'down_proj', 'gate_proj'
         ],
-        modules_to_save=[
-            'lm_head',  # keep output head in higher precision so final projection adapts
-        ],
+        modules_to_save=[],
         lora_dropout=LORA_DROPOUT,
         bias="none",
         task_type=TaskType.CAUSAL_LM,
