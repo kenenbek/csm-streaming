@@ -79,8 +79,8 @@ def prepare_csm_model_for_training():
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
     model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
-    model.gradient_checkpointing_enable()
-    model.config.use_cache = False
+    # model.gradient_checkpointing_enable()
+    # model.config.use_cache = False
     model.train()
     model.codec_model.eval()
     logger.info("Applying LoRA to model using PEFT...")
@@ -100,9 +100,10 @@ def prepare_csm_model_for_training():
                         "up_proj",
                         "down_proj",
                         "gate_proj"],
-        modules_to_save=["projection",
-                         "codebook0_head",
+        modules_to_save=[
                          "lm_head",
+                         # "projection",
+                         # "codebook0_head",
                          "embed_tokens"],
         lora_dropout=LORA_DROPOUT,
         bias="none",
