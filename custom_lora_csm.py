@@ -3,7 +3,7 @@ import os
 import torch
 import logging
 import numpy as np
-from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor
+from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor, BitsAndBytesConfig
 from tqdm import tqdm
 import wandb
 from models import Model
@@ -77,8 +77,17 @@ class ConversationDataset(Dataset):
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
 
+    quant_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
+
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
-    model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
+    model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME,
+                                                        quantization_config=quant_config,
+                                                        trust_remote_code=True).to(DEVICE)
     # model.gradient_checkpointing_enable()
     # model.config.use_cache = False
     model.train()
