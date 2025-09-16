@@ -91,6 +91,19 @@ def main():
 
     print(f"Manual single forward loss: {manual_out.loss.item():.6f}")
 
+    manual_inputs_batched = {k: v.unsqueeze(0).to(model.device) for k, v in debug_sample.items()}
+    print("--- Shapes of Tensors in 'debug_sample' (pre-Training) ---")
+    for k, v in manual_inputs_batched.items():
+        print(f"{k}: {v.shape}")
+    print("----------------------------------------------------------\n")
+
+    with torch.no_grad():
+        sig = inspect.signature(model.forward)
+        filtered = {k: v for k, v in manual_inputs_batched.items() if k in sig.parameters}
+        manual_out = model(**filtered)
+
+    
+
     training_args = TrainingArguments(
         output_dir="trainer_csm_output",
         per_device_train_batch_size=1,
@@ -109,9 +122,7 @@ def main():
         model=model,
         args=training_args,
         train_dataset=dataset,
-        eval_dataset=None,
         tokenizer=processor if hasattr(processor, "tokenizer") else None,
-        # No data_collator needed for batch_size=1
     )
 
     train_result = trainer.train()
