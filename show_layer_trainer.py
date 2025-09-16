@@ -53,18 +53,18 @@ class ConversationDataset(Dataset):
 
 
 # --------------------------- Trainer -----------------------------------
-class CSMTrainer(Trainer):
-    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-        # Move tensors to model device (batch_size=1 so cheap)
-        for k, v in list(inputs.items()):
-            if torch.is_tensor(v) and v.device != model.device:
-                inputs[k] = v.to(model.device)
-        sig = inspect.signature(model.forward)
-        acceptable = set(sig.parameters.keys())
-        model_inputs = {k: v for k, v in inputs.items() if k in acceptable}
-        outputs = model(**model_inputs)
-        loss = outputs.loss
-        return (loss, outputs) if return_outputs else loss
+# class CSMTrainer(Trainer):
+#     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+#         # Move tensors to model device (batch_size=1 so cheap)
+#         for k, v in list(inputs.items()):
+#             if torch.is_tensor(v) and v.device != model.device:
+#                 inputs[k] = v.to(model.device)
+#         sig = inspect.signature(model.forward)
+#         acceptable = set(sig.parameters.keys())
+#         model_inputs = {k: v for k, v in inputs.items() if k in acceptable}
+#         outputs = model(**model_inputs)
+#         loss = outputs.loss
+#         return (loss, outputs) if return_outputs else loss
 
 
 def main():
@@ -113,11 +113,10 @@ def main():
         remove_unused_columns=False,  # keep all produced keys
     )
 
-    trainer = CSMTrainer(
+    trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=dataset,
-        tokenizer=processor if hasattr(processor, "tokenizer") else None,
     )
 
     train_result = trainer.train()
