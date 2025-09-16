@@ -93,11 +93,11 @@ def prepare_csm_model_for_training():
         device_map="auto",
     )
 
-    # IMPORTANT: prepare model for k-bit (casts layer norms & enables input grad)
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
-    # Disable cache when using gradient checkpointing to avoid incompatibility
-    if hasattr(model, "config"):
-        model.config.use_cache = False
+    # # IMPORTANT: prepare model for k-bit (casts layer norms & enables input grad)
+    # model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+    # # Disable cache when using gradient checkpointing to avoid incompatibility
+    # if hasattr(model, "config"):
+    #     model.config.use_cache = False
 
     logger.info("Applying LoRA to model using PEFT...")
 
@@ -162,13 +162,14 @@ def main():
         overwrite_output_dir=True,
         num_train_epochs=NUM_EPOCHS,
         per_device_train_batch_size=BATCH_SIZE,
-        logging_steps=5,
+        logging_steps=50,
         bf16=True,
         output_dir=f"./{OUTPUT_DIR}",
         report_to="wandb",
-        save_steps=500,
+        save_steps=100,
         save_total_limit=KEEP_LAST_N_CHECKPOINTS,
         learning_rate=LEARNING_RATE,
+        gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
     )
 
     trainer = Trainer(
