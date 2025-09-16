@@ -36,15 +36,15 @@ OUTPUT_DIR = "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
-GRADIENT_ACCUMULATION_STEPS = 1
+GRADIENT_ACCUMULATION_STEPS = 32
 LEARNING_RATE = 5e-5
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_NAME = "sesame/csm-1b"
 MAX_AUDIO_FILES = 0
 
-R = 64
-ALPHA = 128
+R = 32
+ALPHA = 64
 LORA_DROPOUT = 0.05
 
 
@@ -87,10 +87,23 @@ def prepare_csm_model_for_training():
     peft_config = LoraConfig(
         r=R,
         lora_alpha=ALPHA,
-        target_modules=['q_proj', 'k_proj', 'v_proj', 'output_proj', "w1", "w2", "w3"],
-        modules_to_save=["projection", "codebook0_head"],
+        target_modules=['q_proj',
+                        'k_proj',
+                        'v_proj',
+                        'o_proj',
+                        'output_proj',
+                        "w1",
+                        "w2",
+                        "w3",
+                        "up_proj",
+                        "down_proj",
+                        "gate_proj"],
+        modules_to_save=["projection",
+                         "codebook0_head",
+                         "lm_head",
+                         "embed_tokens"],
         lora_dropout=LORA_DROPOUT,
-        bias="all",
+        bias="none",
         task_type=TaskType.CAUSAL_LM,
         use_rslora=True,
     )
