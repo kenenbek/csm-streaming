@@ -79,6 +79,8 @@ def prepare_csm_model_for_training():
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
     model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
+    model.gradient_checkpointing_enable()
+    model.config.use_cache = False
     model.train()
     model.codec_model.eval()
     logger.info("Applying LoRA to model using PEFT...")
