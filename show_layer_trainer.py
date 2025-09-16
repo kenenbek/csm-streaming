@@ -1,5 +1,4 @@
 import inspect
-from dataclasses import dataclass
 from typing import List, Any, Dict
 
 import torch
@@ -15,17 +14,9 @@ from transformers import (
 from lora import transcribe_audio_files, META_FILES
 
 """
-Trainer-based reproduction of the logic in show_layer_model.py so you can compare
-manual forward/backward results with the Hugging Face Trainer abstraction.
-
-Key points:
-- Uses the same model + processor (sesame/csm-1b)
-- Builds a lightweight Dataset that returns one conversation item per AudioTextPair
-- Custom data collator calls processor.apply_chat_template with output_labels=True (same as manual code)
-- Custom Trainer subclass filters unexpected keys before forwarding to the model (remove_unused_columns=False kept)
-- Runs a single optimization step (max_steps=1) for a direct loss comparison
-
-You can increase dataset size or steps once validated.
+Trainer-based reproduction of show_layer_model.py, simplified for batch_size=1.
+Since per_device_train_batch_size=1 is guaranteed, a custom data collator is unnecessary.
+Tokenization now happens inside the Dataset.__getitem__, returning a dict of tensors.
 """
 
 model_id = "sesame/csm-1b"
@@ -34,15 +25,15 @@ device = infer_device()
 
 # ---------------------------- Dataset ---------------------------------
 class ConversationDataset(Dataset):
-    def __init__(self, audio_text_pairs: List[Any], limit: int | None = None):
+    def __init__(self, audio_text_pairs: List[Any], processor, limit: int | None = None):
         self.pairs = audio_text_pairs if limit is None else audio_text_pairs[:limit]
+        self.processor = processor
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
         pair = self.pairs[idx]
-        # Same structure as in show_layer_model.py
         conversation = [
             {
                 "role": f"{pair.speaker_id}",
@@ -52,43 +43,20 @@ class ConversationDataset(Dataset):
                 ],
             }
         ]
-        return conversation
-
-
-# ------------------------- Data Collator -------------------------------
-class CSMDataCollator:
-    """Applies chat template per sample and pads to a batch.
-
-    Contract:
-    Input: list[conversation]; each conversation is a list[dict]
-    Output: BatchEncoding with tensors: input_ids, attention_mask, labels, etc.
-    """
-
-    def __init__(self, processor, device):
-        self.processor = processor
-        self.device = device
-
-    def __call__(self, features: List[List[Dict[str, Any]]]):
-        processed = [
-            self.processor.apply_chat_template(
-                conv,
-                tokenize=True,
-                return_dict=True,
-                output_labels=True,
-            )
-            for conv in features
-        ]
-        batch = self.processor.pad(processed, return_tensors="pt")
-        for k, v in batch.items():
-            if torch.is_tensor(v):
-                batch[k] = v.to(self.device)
-        return batch
+        enc = self.processor.apply_chat_template(
+            conversation,
+            tokenize=True,
+            return_dict=True,
+            output_labels=True,
+        )
+        # Return a plain dict of tensors (BatchEncoding is dict-like already)
+        return {k: v for k, v in enc.items() if torch.is_tensor(v)}
 
 
 # --------------------------- Trainer -----------------------------------
 class CSMTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
-        # Ensure all tensors are on model device (if not already)
+        # Move tensors to model device (batch_size=1 so cheap)
         for k, v in list(inputs.items()):
             if torch.is_tensor(v) and v.device != model.device:
                 inputs[k] = v.to(model.device)
@@ -108,24 +76,14 @@ def main():
         model.codec_model.eval()
 
     audio_text_pairs = transcribe_audio_files(metafile_paths=META_FILES)
-    dataset = ConversationDataset(audio_text_pairs, limit=1)
+    dataset = ConversationDataset(audio_text_pairs, processor=processor, limit=1)
 
-    # Debug print shapes (parity with show_layer_model.py)
-    debug_conv = dataset[0]
-    debug_inputs = processor.apply_chat_template(
-        debug_conv,
-        tokenize=True,
-        return_dict=True,
-        output_labels=True,
-    ).to(model.device)
-    print("--- Shapes of Tensors in 'debug_inputs' (pre-Training) ---")
-    for k, v in debug_inputs.items():
-        if hasattr(v, "shape"):
-            print(f"{k}: {v.shape}")
-    print("---------------------------------------------------------\n")
-
-    # Instantiate data collator (previously missing)
-    data_collator = CSMDataCollator(processor, model.device)
+    # Debug shapes from first processed sample (pre-training)
+    debug_sample = dataset[0]
+    print("--- Shapes of Tensors in 'debug_sample' (pre-Training) ---")
+    for k, v in debug_sample.items():
+        print(f"{k}: {v.shape}")
+    print("----------------------------------------------------------\n")
 
     training_args = TrainingArguments(
         output_dir="trainer_csm_output",
@@ -138,7 +96,7 @@ def main():
         fp16=torch.cuda.is_available(),
         bf16=False,
         report_to=[],
-        remove_unused_columns=False,
+        remove_unused_columns=False,  # keep all produced keys
     )
 
     trainer = CSMTrainer(
@@ -147,33 +105,27 @@ def main():
         train_dataset=dataset,
         eval_dataset=None,
         tokenizer=processor if hasattr(processor, "tokenizer") else None,
-        data_collator=data_collator,
+        # No data_collator needed for batch_size=1
     )
 
     train_result = trainer.train()
     trainer.log_metrics("train", train_result.metrics)
     trainer.save_metrics("train", train_result.metrics)
 
-    # Direct manual forward (single example) to compare loss numerically
-    first_conv = dataset[0]
-    manual_inputs = processor.apply_chat_template(
-        first_conv,
-        tokenize=True,
-        return_dict=True,
-        output_labels=True,
-    ).to(model.device)
-
+    # Manual forward after one optimization step
+    manual_inputs = dataset[0]
+    # Add batch dimension manually to mirror Trainer stacking
+    manual_inputs_batched = {k: v.unsqueeze(0).to(model.device) for k, v in manual_inputs.items()}
     with torch.no_grad():
-        manual_out = model(**{k: v for k, v in manual_inputs.items() if k in inspect.signature(model.forward).parameters})
+        sig = inspect.signature(model.forward)
+        filtered = {k: v for k, v in manual_inputs_batched.items() if k in sig.parameters}
+        manual_out = model(**filtered)
 
     print("\n--- Comparison ---")
     print(f"Trainer final loss (last logged): {train_result.training_loss}")
     print(f"Manual single forward loss: {manual_out.loss.item():.6f}")
-    print("If these differ slightly it's due to one optimization step updating weights.")
+    print("A difference is expected because weights updated once before manual forward.")
 
 
-if __name__ == "main":  # allow python -m execution mistakes
-    main()
-
-if __name__ == "__main__":
+if __name__ == "main":
     main()
