@@ -37,8 +37,8 @@ OUTPUT_DIR = "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
-GRADIENT_ACCUMULATION_STEPS = 4
-LEARNING_RATE = 5e-4
+GRADIENT_ACCUMULATION_STEPS = 32
+LEARNING_RATE = 5e-5
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_NAME = "sesame/csm-1b"
@@ -108,7 +108,8 @@ def prepare_csm_model_for_training():
         device_map="auto",
     )
 
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+    model.config.use_cache = False
 
     logger.info("Applying LoRA to model using PEFT...")
 
@@ -170,11 +171,11 @@ def main():
         overwrite_output_dir=True,
         num_train_epochs=NUM_EPOCHS,
         per_device_train_batch_size=BATCH_SIZE,
-        logging_steps=1,
+        logging_steps=5,
         bf16=True,
         output_dir=f"./{OUTPUT_DIR}",
         report_to="wandb",
-        save_steps=50,
+        save_steps=25,
         save_total_limit=KEEP_LAST_N_CHECKPOINTS,
         learning_rate=LEARNING_RATE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
