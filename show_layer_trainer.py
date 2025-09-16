@@ -99,10 +99,12 @@ def main():
 
     with torch.no_grad():
         sig = inspect.signature(model.forward)
+        print(sig)
         filtered = {k: v for k, v in manual_inputs_batched.items() if k in sig.parameters}
         manual_out = model(**filtered)
 
-    
+    print(f"222 Manual single forward loss: {manual_out.loss.item():.6f}")
+
 
     training_args = TrainingArguments(
         output_dir="trainer_csm_output",
