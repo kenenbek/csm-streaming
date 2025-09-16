@@ -103,11 +103,6 @@ def prepare_csm_model_for_training():
         device_map="auto",
     )
 
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
-    # # Disable cache when using gradient checkpointing to avoid incompatibility
-    # if hasattr(model, "config"):
-    #     model.config.use_cache = False
-
     logger.info("Applying LoRA to model using PEFT...")
 
     peft_config = LoraConfig(
