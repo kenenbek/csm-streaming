@@ -61,6 +61,9 @@ TARGET_MODULES = [
     "down_proj"
 ]
 
+MODULES_TO_SAVE = ["embed_tokens",
+                   "lm_head",
+                   "codebooks_head"]
 
 class ConversationDataset(Dataset):
     def __init__(self, audio_text_pairs, processor):
@@ -93,6 +96,8 @@ def prepare_csm_model_for_training():
 
     quant_config = BitsAndBytesConfig(
         load_in_8bit=True,
+        llm_int8_skip_modules=MODULES_TO_SAVE,
+        bnb_8bit_compute_dtype=torch.bfloat16,
     )
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
@@ -103,13 +108,15 @@ def prepare_csm_model_for_training():
         device_map="auto",
     )
 
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
+
     logger.info("Applying LoRA to model using PEFT...")
 
     peft_config = LoraConfig(
         r=R,
         lora_alpha=ALPHA,
         target_modules=TARGET_MODULES,
-        modules_to_save=["embed_tokens", "lm_head"],
+        modules_to_save=MODULES_TO_SAVE,
         lora_dropout=LORA_DROPOUT,
         bias="none",
         task_type=TaskType.CAUSAL_LM,
