@@ -78,7 +78,7 @@ def main():
                                       audio_path="audio/sample.wav",
                                       speaker_id=1)]
     dataset = ConversationDataset(audio_text_pairs, processor=processor, limit=1)
-
+    debug_sample = dataset[0]
     # Debug shapes from first processed sample (pre-training)
     print("--- Shapes of Tensors in 'debug_sample' (pre-Training) ---")
     for k, v in debug_sample.items():
