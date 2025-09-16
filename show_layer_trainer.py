@@ -42,14 +42,13 @@ class ConversationDataset(Dataset):
                 ],
             }
         ]
-        enc = self.processor.apply_chat_template(
+        inputs = self.processor.apply_chat_template(
             conversation,
             tokenize=True,
             return_dict=True,
             output_labels=True,
         )
-        # Return a plain dict of tensors (BatchEncoding is dict-like already)
-        return {k: v for k, v in enc.items() if torch.is_tensor(v)}
+        return inputs
 
 
 # --------------------------- Trainer -----------------------------------
@@ -88,13 +87,7 @@ def main():
     print("----------------------------------------------------------\n")
 
     # Manual forward after one optimization step
-    manual_inputs = dataset[0]
-    # Add batch dimension manually to mirror Trainer stacking
-    manual_inputs_batched = {k: v.unsqueeze(0).to(model.device) for k, v in manual_inputs.items()}
-    with torch.no_grad():
-        sig = inspect.signature(model.forward)
-        filtered = {k: v for k, v in manual_inputs_batched.items() if k in sig.parameters}
-        manual_out = model(**filtered)
+    manual_out = model(**debug_sample)
 
     print(f"Manual single forward loss: {manual_out.loss.item():.6f}")
 
