@@ -35,7 +35,7 @@ META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 OUTPUT_DIR = "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
-BATCH_SIZE = 2
+BATCH_SIZE = 1
 GRADIENT_ACCUMULATION_STEPS = 1
 LEARNING_RATE = 5e-5
 SEED = 42
@@ -43,8 +43,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_NAME = "sesame/csm-1b"
 MAX_AUDIO_FILES = 0
 
-R = 8
-ALPHA = 16
+R = 64
+ALPHA = 128
 LORA_DROPOUT = 0.05
 
 
