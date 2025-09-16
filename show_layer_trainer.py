@@ -127,5 +127,6 @@ def main():
     print("A difference is expected because weights updated once before manual forward.")
 
 
-if __name__ == "main":
+
+if __name__ == "__main__":
     main()
