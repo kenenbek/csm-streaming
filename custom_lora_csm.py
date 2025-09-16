@@ -12,6 +12,7 @@ from huggingface_hub import hf_hub_download
 from tokenizers.processors import TemplateProcessing
 
 from peft import get_peft_model, LoraConfig, TaskType
+from peft.utils import prepare_model_for_kbit_training
 from lora import transcribe_audio_files
 from torch.utils.data import Dataset, DataLoader
 
@@ -85,45 +86,43 @@ def prepare_csm_model_for_training():
     )
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
-    model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME,
-                                                        quantization_config=quant_config,
-                                                        trust_remote_code=True).to(DEVICE)
-    # model.gradient_checkpointing_enable()
-    # model.config.use_cache = False
-    model.train()
-    model.codec_model.eval()
+    model = CsmForConditionalGeneration.from_pretrained(
+        MODEL_NAME,
+        quantization_config=quant_config,
+        trust_remote_code=True,
+        device_map={"": DEVICE} if DEVICE == "cuda" else None,
+    )
+
+    # IMPORTANT: prepare model for k-bit (casts layer norms & enables input grad)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+    # Disable cache when using gradient checkpointing to avoid incompatibility
+    if hasattr(model, "config"):
+        model.config.use_cache = False
+
     logger.info("Applying LoRA to model using PEFT...")
 
-    # Define the LoRA configuration using LoraConfig
+    # NOTE: Removed 'embed_tokens' from modules_to_save because it's 4-bit quantized (int/packed) and
+    # cannot require gradients directly. If you want to train embeddings, first dequantize:
+    # emb = model.get_input_embeddings(); emb.weight = torch.nn.Parameter(emb.weight.float())
+    # then include 'embed_tokens' in modules_to_save.
+
     peft_config = LoraConfig(
         r=R,
         lora_alpha=ALPHA,
-        target_modules=['q_proj',
-                        'k_proj',
-                        'v_proj',
-                        'o_proj',
-                        'output_proj',
-                        # "w1",
-                        # "w2",
-                        # "w3",
-                        "up_proj",
-                        "down_proj",
-                        "gate_proj"],
+        target_modules=[
+            'q_proj', 'k_proj', 'v_proj', 'o_proj', 'output_proj',
+            'up_proj', 'down_proj', 'gate_proj'
+        ],
         modules_to_save=[
-                         "lm_head",
-                         # "projection",
-                         # "codebook0_head",
-                         "embed_tokens"],
+            'lm_head',  # keep output head in higher precision so final projection adapts
+        ],
         lora_dropout=LORA_DROPOUT,
         bias="none",
         task_type=TaskType.CAUSAL_LM,
         use_rslora=True,
     )
 
-    # Create the PeftModel
     model = get_peft_model(model, peft_config)
-
-    # Print trainable parameters
     model.print_trainable_parameters()
 
     return model, processor
