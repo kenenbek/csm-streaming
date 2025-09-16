@@ -37,7 +37,7 @@ OUTPUT_DIR = "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
-GRADIENT_ACCUMULATION_STEPS = 32
+GRADIENT_ACCUMULATION_STEPS = 4
 LEARNING_RATE = 5e-4
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -93,7 +93,6 @@ def prepare_csm_model_for_training():
         device_map="auto",
     )
 
-    # # IMPORTANT: prepare model for k-bit (casts layer norms & enables input grad)
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
     # # Disable cache when using gradient checkpointing to avoid incompatibility
     # if hasattr(model, "config"):
@@ -108,7 +107,7 @@ def prepare_csm_model_for_training():
             'q_proj', 'k_proj', 'v_proj', 'o_proj', 'output_proj',
             'up_proj', 'down_proj', 'gate_proj', "w1", "w2", "w3"
         ],
-        modules_to_save=["embed_tokens"],
+        modules_to_save=["embed_tokens", "lm_head"],
         lora_dropout=LORA_DROPOUT,
         bias="none",
         task_type=TaskType.CAUSAL_LM,
@@ -162,7 +161,7 @@ def main():
         overwrite_output_dir=True,
         num_train_epochs=NUM_EPOCHS,
         per_device_train_batch_size=BATCH_SIZE,
-        logging_steps=50,
+        logging_steps=1,
         bf16=True,
         output_dir=f"./{OUTPUT_DIR}",
         report_to="wandb",
