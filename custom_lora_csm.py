@@ -108,7 +108,7 @@ def prepare_csm_model_for_training():
             'q_proj', 'k_proj', 'v_proj', 'o_proj', 'output_proj',
             'up_proj', 'down_proj', 'gate_proj', "w1", "w2", "w3"
         ],
-        modules_to_save=[],
+        modules_to_save=["lm_head", "embed_tokens"],
         lora_dropout=LORA_DROPOUT,
         bias="none",
         task_type=TaskType.CAUSAL_LM,
