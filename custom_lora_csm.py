@@ -43,42 +43,35 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_NAME = "sesame/csm-1b"
 MAX_AUDIO_FILES = 0
 
-R = 64
-ALPHA = 64
+R = 8
+ALPHA = 16
 LORA_DROPOUT = 0.05
 
 
-class CSMDataset(Dataset):
-    def __init__(self, data_items, processor):
-        self.data_items = data_items
+class ConversationDataset(Dataset):
+    def __init__(self, audio_text_pairs, processor):
+        self.pairs = audio_text_pairs
         self.processor = processor
         self.sample_rate = processor.feature_extractor.sampling_rate
 
     def __len__(self):
-        return len(self.data_items)
+        return len(self.pairs)
 
-    def __getitem__(self, idx: int):
-        item = self.data_items[idx]
+    def __getitem__(self, idx):
+        item = self.pairs[idx]
         audio = item.load_audio(self.sample_rate)
-        print("audio have shape: ", audio.shape)
-        print(self.processor.feature_extractor)
+
         inputs = self.processor(
-            text=[f"<|begin_of_text|>[{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>"],
+            text=f"<|begin_of_text|>[{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>",
             audio=audio,
             output_labels=True,
             text_kwargs={"padding": True},
-            audio_kwargs = {"sampling_rate": self.sample_rate},
-            common_kwargs = {"return_tensors": "pt"},
+            audio_kwargs={"sampling_rate": self.sample_rate},
+            common_kwargs={"return_tensors": "pt"},
         )
-
-        print("--- Shapes of Tensors in 'inputs' ---")
-        for key, value in inputs.items():
-            # Check if the value is a tensor, as the dict might contain other info
-            if hasattr(value, 'shape'):
-                print(f"{key}: {value.shape}")
-        print("-------------------------------------\n")
-
-        return inputs
+        cleaned = {k: (v[0] if isinstance(v, torch.Tensor) and v.dim() > 0 else v)
+                   for k, v in inputs.items() if torch.is_tensor(v)}
+        return cleaned
 
 
 def prepare_csm_model_for_training():
@@ -88,25 +81,25 @@ def prepare_csm_model_for_training():
     model = CsmForConditionalGeneration.from_pretrained(MODEL_NAME, trust_remote_code=True).to(DEVICE)
     model.train()
     model.codec_model.eval()
-    # logger.info("Applying LoRA to model using PEFT...")
-    #
-    # # Define the LoRA configuration using LoraConfig
-    # peft_config = LoraConfig(
-    #     r=R,
-    #     lora_alpha=ALPHA,
-    #     target_modules=['q_proj', 'k_proj', 'v_proj', 'output_proj', "w1", "w2", "w3"],
-    #     modules_to_save=["projection", "codebook0_head"],
-    #     lora_dropout=LORA_DROPOUT,
-    #     bias="all",
-    #     task_type=TaskType.CAUSAL_LM,
-    #     use_rslora=True,
-    # )
-    #
-    # # Create the PeftModel
-    # model = get_peft_model(model, peft_config)
-    #
-    # # Print trainable parameters
-    # model.print_trainable_parameters()
+    logger.info("Applying LoRA to model using PEFT...")
+
+    # Define the LoRA configuration using LoraConfig
+    peft_config = LoraConfig(
+        r=R,
+        lora_alpha=ALPHA,
+        target_modules=['q_proj', 'k_proj', 'v_proj', 'output_proj', "w1", "w2", "w3"],
+        modules_to_save=["projection", "codebook0_head"],
+        lora_dropout=LORA_DROPOUT,
+        bias="all",
+        task_type=TaskType.CAUSAL_LM,
+        use_rslora=True,
+    )
+
+    # Create the PeftModel
+    model = get_peft_model(model, peft_config)
+
+    # Print trainable parameters
+    model.print_trainable_parameters()
 
     return model, processor
 
@@ -128,7 +121,7 @@ def main():
         logger.error(f"No audio files found or transcribed in {META_FILES}")
         return
 
-    dataset = CSMDataset(
+    dataset = ConversationDataset(
         audio_text_pairs,
         processor=processor,
     )
@@ -165,7 +158,6 @@ def main():
         model=model,
         args=training_args,
         train_dataset=dataset,
-        processing_class=processor,
     )
 
     trainer.train()
