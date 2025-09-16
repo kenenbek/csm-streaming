@@ -55,11 +55,43 @@ class ConversationDataset(Dataset):
         return conversation
 
 
+# ------------------------- Data Collator -------------------------------
+class CSMDataCollator:
+    """Applies chat template per sample and pads to a batch.
+
+    Contract:
+    Input: list[conversation]; each conversation is a list[dict]
+    Output: BatchEncoding with tensors: input_ids, attention_mask, labels, etc.
+    """
+
+    def __init__(self, processor, device):
+        self.processor = processor
+        self.device = device
+
+    def __call__(self, features: List[List[Dict[str, Any]]]):
+        processed = [
+            self.processor.apply_chat_template(
+                conv,
+                tokenize=True,
+                return_dict=True,
+                output_labels=True,
+            )
+            for conv in features
+        ]
+        batch = self.processor.pad(processed, return_tensors="pt")
+        for k, v in batch.items():
+            if torch.is_tensor(v):
+                batch[k] = v.to(self.device)
+        return batch
+
 
 # --------------------------- Trainer -----------------------------------
 class CSMTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
-        # Filter only acceptable args for model forward
+        # Ensure all tensors are on model device (if not already)
+        for k, v in list(inputs.items()):
+            if torch.is_tensor(v) and v.device != model.device:
+                inputs[k] = v.to(model.device)
         sig = inspect.signature(model.forward)
         acceptable = set(sig.parameters.keys())
         model_inputs = {k: v for k, v in inputs.items() if k in acceptable}
@@ -69,31 +101,44 @@ class CSMTrainer(Trainer):
 
 
 def main():
-    # Load model & processor (same as original script)
     processor = AutoProcessor.from_pretrained(model_id)
     model = CsmForConditionalGeneration.from_pretrained(model_id, device_map=device)
     model.train()
-    # Keep codec_model in eval as original
     if hasattr(model, "codec_model"):
         model.codec_model.eval()
 
-    # Build dataset (limit to 1 for parity with show_layer_model.py)
     audio_text_pairs = transcribe_audio_files(metafile_paths=META_FILES)
     dataset = ConversationDataset(audio_text_pairs, limit=1)
 
+    # Debug print shapes (parity with show_layer_model.py)
+    debug_conv = dataset[0]
+    debug_inputs = processor.apply_chat_template(
+        debug_conv,
+        tokenize=True,
+        return_dict=True,
+        output_labels=True,
+    ).to(model.device)
+    print("--- Shapes of Tensors in 'debug_inputs' (pre-Training) ---")
+    for k, v in debug_inputs.items():
+        if hasattr(v, "shape"):
+            print(f"{k}: {v.shape}")
+    print("---------------------------------------------------------\n")
 
-    # Training arguments: single step to mirror manual backward()
+    # Instantiate data collator (previously missing)
+    data_collator = CSMDataCollator(processor, model.device)
+
     training_args = TrainingArguments(
         output_dir="trainer_csm_output",
         per_device_train_batch_size=1,
         num_train_epochs=1,
-        max_steps=1,  # force exactly one optimizer update
+        max_steps=1,
         gradient_accumulation_steps=1,
         logging_steps=1,
-        save_steps=1_000_000,  # effectively disable saving during this quick test
+        save_steps=1_000_000,
         fp16=torch.cuda.is_available(),
         bf16=False,
-        report_to=[],  # disable W&B etc. for the quick comparison run
+        report_to=[],
+        remove_unused_columns=False,
     )
 
     trainer = CSMTrainer(
@@ -102,6 +147,7 @@ def main():
         train_dataset=dataset,
         eval_dataset=None,
         tokenizer=processor if hasattr(processor, "tokenizer") else None,
+        data_collator=data_collator,
     )
 
     train_result = trainer.train()
@@ -131,4 +177,3 @@ if __name__ == "main":  # allow python -m execution mistakes
 
 if __name__ == "__main__":
     main()
-
