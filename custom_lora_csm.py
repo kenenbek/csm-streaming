@@ -165,6 +165,7 @@ def main():
         model=model,
         args=training_args,
         train_dataset=dataset,
+        processing_class=processor,
     )
 
     trainer.train()
