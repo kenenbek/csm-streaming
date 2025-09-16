@@ -48,6 +48,30 @@ R = 32
 ALPHA = 64
 LORA_DROPOUT = 0.05
 
+TARGET_MODULES = [
+    # Backbone model attention layers
+    "backbone_model.layers.*.self_attn.q_proj",
+    "backbone_model.layers.*.self_attn.k_proj",
+    "backbone_model.layers.*.self_attn.v_proj",
+    "backbone_model.layers.*.self_attn.o_proj",
+
+    # Backbone model MLP layers
+    "backbone_model.layers.*.mlp.gate_proj",
+    "backbone_model.layers.*.mlp.up_proj",
+    "backbone_model.layers.*.mlp.down_proj",
+
+    # Depth decoder attention layers
+    "depth_decoder.model.layers.*.self_attn.q_proj",
+    "depth_decoder.model.layers.*.self_attn.k_proj",
+    "depth_decoder.model.layers.*.self_attn.v_proj",
+    "depth_decoder.model.layers.*.self_attn.o_proj",
+
+    # Depth decoder MLP layers
+    "depth_decoder.model.layers.*.mlp.gate_proj",
+    "depth_decoder.model.layers.*.mlp.up_proj",
+    "depth_decoder.model.layers.*.mlp.down_proj",
+]
+
 
 class ConversationDataset(Dataset):
     def __init__(self, audio_text_pairs, processor):
@@ -79,10 +103,7 @@ def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
 
     quant_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
+        load_in_8bit=True,
     )
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
@@ -103,10 +124,7 @@ def prepare_csm_model_for_training():
     peft_config = LoraConfig(
         r=R,
         lora_alpha=ALPHA,
-        target_modules=[
-            'q_proj', 'k_proj', 'v_proj', 'o_proj', 'output_proj',
-            'up_proj', 'down_proj', 'gate_proj', "w1", "w2", "w3"
-        ],
+        target_modules=TARGET_MODULES,
         modules_to_save=["embed_tokens", "lm_head"],
         lora_dropout=LORA_DROPOUT,
         bias="none",
