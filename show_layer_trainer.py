@@ -19,7 +19,7 @@ use of the default Trainer without a custom compute_loss.
 """
 
 model_id = "sesame/csm-1b"
-device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 # ---------------------------- Dataset ---------------------------------
@@ -70,10 +70,9 @@ class ConversationDataset(Dataset):
 def main():
     processor = AutoProcessor.from_pretrained(model_id)
     model = CsmForConditionalGeneration.from_pretrained(model_id)
+    model.to(device)
     model.train()
-    if hasattr(model, "codec_model"):
-        model.codec_model.eval()
-
+    model.codec_model.eval()
     audio_text_pairs = [AudioTextPair(text="Бирок 15 мүнөт кеч калып телефонуңузду заряддап алсаңыз кеңседе эч ким каршы болбойт.",
                                       audio_path="audio/sample.wav",
                                       speaker_id=1)]
