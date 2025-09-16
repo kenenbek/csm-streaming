@@ -78,24 +78,15 @@ def main():
                                       speaker_id=1)]
     dataset = ConversationDataset(audio_text_pairs, processor=processor, limit=1)
     debug_sample = dataset[0]
-    # Debug shapes from first processed sample (pre-training)
-    print("--- Shapes of Tensors in 'debug_sample' (pre-Training) ---")
-    for k, v in debug_sample.items():
-        print(f"{k}: {v.shape}")
-    print("----------------------------------------------------------\n")
 
-    # Manual forward after one optimization step
-    manual_out = model(**debug_sample)
-
-    print(f"Manual single forward loss: {manual_out.loss.item():.6f}")
-
+    manual_inputs_batched = {k: v.unsqueeze(0).to(model.device) for k, v in debug_sample.items()}
     with torch.no_grad():
         sig = inspect.signature(model.forward)
         print(sig)
-        filtered = {k: v for k, v in debug_sample.items() if k in sig.parameters}
+        filtered = {k: v for k, v in manual_inputs_batched.items() if k in sig.parameters}
         manual_out = model(**filtered)
 
-    print(f"222 Manual single forward loss: {manual_out.loss.item():.6f}")
+    print(f"Manual single forward loss: {manual_out.loss.item():.6f}")
 
 
     training_args = TrainingArguments(
