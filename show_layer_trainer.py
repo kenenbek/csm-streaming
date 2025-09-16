@@ -10,16 +10,15 @@ from transformers import (
     Trainer,
 )
 
-from lora import transcribe_audio_files, META_FILES
+from lora import transcribe_audio_files, META_FILES, AudioTextPair
 
 """
 Trainer-based reproduction of show_layer_model.py, simplified for batch_size=1.
-Since per_device_train_batch_size=1 is guaranteed, a custom data collator is unnecessary.
-Tokenization now happens inside the Dataset.__getitem__, returning a dict of tensors.
+Forward override added so the model itself filters unexpected kwargs, allowing
+use of the default Trainer without a custom compute_loss.
 """
 
 model_id = "sesame/csm-1b"
-# Fallback device selection (infer_device not present in this transformers version)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -76,7 +75,9 @@ def main():
     if hasattr(model, "codec_model"):
         model.codec_model.eval()
 
-    audio_text_pairs = transcribe_audio_files(metafile_paths=META_FILES)
+    audio_text_pairs = [AudioTextPair(text="Бирок 15 мүнөт кеч калып телефонуңузду заряддап алсаңыз кеңседе эч ким каршы болбойт.",
+                                      audio_path="audio/sample.wav",
+                                      speaker_id=1)]
     dataset = ConversationDataset(audio_text_pairs, processor=processor, limit=1)
 
     # Debug shapes from first processed sample (pre-training)
