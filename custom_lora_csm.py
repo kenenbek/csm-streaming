@@ -94,7 +94,7 @@ def prepare_csm_model_for_training():
     )
 
     # # IMPORTANT: prepare model for k-bit (casts layer norms & enables input grad)
-    # model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
     # # Disable cache when using gradient checkpointing to avoid incompatibility
     # if hasattr(model, "config"):
     #     model.config.use_cache = False
@@ -166,7 +166,7 @@ def main():
         bf16=True,
         output_dir=f"./{OUTPUT_DIR}",
         report_to="wandb",
-        save_steps=100,
+        save_steps=50,
         save_total_limit=KEEP_LAST_N_CHECKPOINTS,
         learning_rate=LEARNING_RATE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
