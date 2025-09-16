@@ -90,7 +90,7 @@ def prepare_csm_model_for_training():
         MODEL_NAME,
         quantization_config=quant_config,
         trust_remote_code=True,
-        device_map={"": DEVICE} if DEVICE == "cuda" else None,
+        device_map="auto",
     )
 
     # IMPORTANT: prepare model for k-bit (casts layer norms & enables input grad)
