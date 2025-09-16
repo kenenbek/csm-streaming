@@ -50,26 +50,15 @@ LORA_DROPOUT = 0.05
 
 TARGET_MODULES = [
     # Backbone model attention layers
-    "backbone_model.layers.*.self_attn.q_proj",
-    "backbone_model.layers.*.self_attn.k_proj",
-    "backbone_model.layers.*.self_attn.v_proj",
-    "backbone_model.layers.*.self_attn.o_proj",
+    "k_proj",
+    "q_proj",
+    "v_proj",
+    "o_proj",
 
     # Backbone model MLP layers
-    "backbone_model.layers.*.mlp.gate_proj",
-    "backbone_model.layers.*.mlp.up_proj",
-    "backbone_model.layers.*.mlp.down_proj",
-
-    # Depth decoder attention layers
-    "depth_decoder.model.layers.*.self_attn.q_proj",
-    "depth_decoder.model.layers.*.self_attn.k_proj",
-    "depth_decoder.model.layers.*.self_attn.v_proj",
-    "depth_decoder.model.layers.*.self_attn.o_proj",
-
-    # Depth decoder MLP layers
-    "depth_decoder.model.layers.*.mlp.gate_proj",
-    "depth_decoder.model.layers.*.mlp.up_proj",
-    "depth_decoder.model.layers.*.mlp.down_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj"
 ]
 
 
