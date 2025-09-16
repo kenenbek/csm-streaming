@@ -106,7 +106,7 @@ def prepare_csm_model_for_training():
         lora_alpha=ALPHA,
         target_modules=[
             'q_proj', 'k_proj', 'v_proj', 'o_proj', 'output_proj',
-            'up_proj', 'down_proj', 'gate_proj'
+            'up_proj', 'down_proj', 'gate_proj', "w1", "w2", "w3"
         ],
         modules_to_save=[],
         lora_dropout=LORA_DROPOUT,
