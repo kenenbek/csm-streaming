@@ -44,7 +44,12 @@ class ConversationDataset(Dataset):
             audio_kwargs={"sampling_rate": self.sample_rate},
             common_kwargs={"return_tensors": "pt"},
         )
-        return inputs
+
+        # Remove the implicit batch dim so DataLoader can add the real batch dim
+        cleaned = {k: (v[0] if isinstance(v, torch.Tensor) and v.dim() > 0 else v)
+                   for k, v in inputs.items()}
+
+        return cleaned
 
 
 # --------------------------- Trainer -----------------------------------
