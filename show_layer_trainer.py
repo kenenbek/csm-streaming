@@ -19,7 +19,7 @@ use of the default Trainer without a custom compute_loss.
 """
 
 model_id = "sesame/csm-1b"
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"
 
 
 # ---------------------------- Dataset ---------------------------------
@@ -70,7 +70,6 @@ class CSMTrainer(Trainer):
 def main():
     processor = AutoProcessor.from_pretrained(model_id)
     model = CsmForConditionalGeneration.from_pretrained(model_id)
-    model.to(device)
     model.train()
     if hasattr(model, "codec_model"):
         model.codec_model.eval()
@@ -81,7 +80,6 @@ def main():
     dataset = ConversationDataset(audio_text_pairs, processor=processor, limit=1)
 
     # Debug shapes from first processed sample (pre-training)
-    debug_sample = dataset[0].to(device)
     print("--- Shapes of Tensors in 'debug_sample' (pre-Training) ---")
     for k, v in debug_sample.items():
         print(f"{k}: {v.shape}")
