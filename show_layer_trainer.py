@@ -27,25 +27,22 @@ class ConversationDataset(Dataset):
     def __init__(self, audio_text_pairs: List[Any], processor, limit: int | None = None):
         self.pairs = audio_text_pairs if limit is None else audio_text_pairs[:limit]
         self.processor = processor
+        self.sample_rate = 24_000
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        pair = self.pairs[idx]
-        conversation = {
-                "role": f"{pair.speaker_id}",
-                "content": [
-                    {"type": "text", "text": pair.text},
-                    {"type": "audio", "path": pair.audio_path},
-                ],
-            }
-
-        inputs = self.processor.apply_chat_template(
-            conversation,
-            tokenize=True,
-            return_dict=True,
+        item = self.pairs[idx]
+        audio = item.load_audio(self.sample_rate)
+        print("audio have shape: ", audio.shape)
+        inputs = self.processor(
+            text=f"<|begin_of_text|>[{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>",
+            audio=audio,
             output_labels=True,
+            text_kwargs={"padding": True},
+            audio_kwargs={"sampling_rate": self.sample_rate},
+            common_kwargs={"return_tensors": "pt"},
         )
         return inputs
 
