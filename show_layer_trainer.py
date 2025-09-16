@@ -33,15 +33,14 @@ class ConversationDataset(Dataset):
 
     def __getitem__(self, idx):
         pair = self.pairs[idx]
-        conversation = [
-            {
+        conversation = {
                 "role": f"{pair.speaker_id}",
                 "content": [
                     {"type": "text", "text": pair.text},
                     {"type": "audio", "path": pair.audio_path},
                 ],
             }
-        ]
+
         inputs = self.processor.apply_chat_template(
             conversation,
             tokenize=True,
