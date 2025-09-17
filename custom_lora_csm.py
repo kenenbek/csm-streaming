@@ -59,13 +59,13 @@ TARGET_MODULES = [
     "o_proj",
 
     # Backbone model MLP layers
-    "gate_proj",
-    "up_proj",
-    "down_proj"
+    # "gate_proj",
+    # "up_proj",
+    # "down_proj"
 ]
 
 MODULES_TO_SAVE = ["embed_tokens",
-                   #"lm_head",
+                   "lm_head",
                    "codebooks_head"]
 
 class ConversationDataset(Dataset):
