@@ -44,8 +44,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_NAME = "sesame/csm-1b"
 MAX_AUDIO_FILES = 0
 
-R = 32
-ALPHA = 64
+R = 64
+ALPHA = 128
 LORA_DROPOUT = 0.05
 
 TARGET_MODULES = [
