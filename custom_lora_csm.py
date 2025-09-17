@@ -68,58 +68,6 @@ MODULES_TO_SAVE = ["embed_tokens",
                    "lm_head",
                    "codebooks_head"]
 
-def report_quantization(model):
-    """Log which linear-like modules are quantized vs not.
-
-    Heuristics only: quantized layers are typically bitsandbytes Linear4bit/Linear8bitLt.
-    We avoid importing bitsandbytes here; we check class/module names instead.
-    """
-    quantized_names = []
-    unquantized_linear = []
-    other_unquantized = []
-
-    def is_bnb_linear(m):
-        cls = m.__class__
-        name = cls.__name__
-        mod = getattr(cls, "__module__", "")
-        return ("bitsandbytes" in mod) and ("Linear" in name)
-
-    for n, m in model.named_modules():
-        try:
-            if is_bnb_linear(m):
-                quantized_names.append(n)
-            elif isinstance(m, torch.nn.Linear):
-                # Full-precision Linear that wasn't quantized
-                dtype = getattr(getattr(m, "weight", None), "dtype", None)
-                reason = None
-                for keep in MODULES_TO_SAVE:
-                    # mark if intentionally kept
-                    if any(seg == keep for seg in n.split(".")):
-                        reason = f"kept ({keep})"
-                        break
-                unquantized_linear.append((n, str(dtype), reason))
-            else:
-                # keep a small sample of other modules that might be expected to be unquantized
-                pass
-        except Exception:
-            # Best-effort; skip on any odd module
-            continue
-
-    logger.info("Quantization summary:")
-    logger.info(f" - Quantized (bnb) linear modules: {len(quantized_names)}")
-    logger.info(f" - Unquantized torch.nn.Linear modules: {len(unquantized_linear)}")
-
-    # List a few examples for quick inspection
-    if quantized_names:
-        logger.info("Examples of quantized: " + ", ".join(quantized_names[:10]))
-    if unquantized_linear:
-        preview = [f"{n} (dtype={d}{'; ' + r if r else ''})" for n, d, r in unquantized_linear[:20]]
-        logger.info("Examples of unquantized Linear: " + "; ".join(preview))
-
-    # If nothing quantized was found, hint at potential misconfig
-    if not quantized_names:
-        logger.warning("No bitsandbytes Linear modules detected. Verify that load_in_4bit=True and bitsandbytes is installed with CUDA support.")
-
 class ConversationDataset(Dataset):
     def __init__(self, audio_text_pairs, processor):
         self.pairs = audio_text_pairs
@@ -192,7 +140,7 @@ def prepare_csm_model_for_training():
     )
 
     # Report which parts are quantized vs not before PEFT wrapping
-    report_quantization(model)
+    print(model)
 
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     model.config.use_cache = False
