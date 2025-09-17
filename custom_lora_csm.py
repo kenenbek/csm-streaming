@@ -65,7 +65,7 @@ TARGET_MODULES = [
 ]
 
 MODULES_TO_SAVE = ["embed_tokens",
-                   "lm_head",
+                   #"lm_head",
                    "codebooks_head"]
 
 class ConversationDataset(Dataset):
@@ -129,7 +129,6 @@ def prepare_csm_model_for_training():
         bnb_4bit_compute_dtype=(
             torch.bfloat16 if torch.cuda.is_available() and getattr(torch.cuda, "is_bf16_supported", lambda: False)() else torch.float16
         ),
-        modules_to_not_convert=["lm_head", "embed_tokens"]
     )
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
@@ -139,9 +138,6 @@ def prepare_csm_model_for_training():
         trust_remote_code=True,
         device_map="auto",
     )
-
-    # Report which parts are quantized vs not before PEFT wrapping
-    print(model)
 
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     model.config.use_cache = False
