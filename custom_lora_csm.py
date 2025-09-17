@@ -129,6 +129,7 @@ def prepare_csm_model_for_training():
         bnb_4bit_compute_dtype=(
             torch.bfloat16 if torch.cuda.is_available() and getattr(torch.cuda, "is_bf16_supported", lambda: False)() else torch.float16
         ),
+        modules_to_not_convert=["lm_head", "embed_tokens"]
     )
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
