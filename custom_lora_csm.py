@@ -60,6 +60,7 @@ TARGET_MODULES = [
 ]
 
 MODULES_TO_SAVE = ["embed_text_tokens",
+                   "embed_tokens",
                    "lm_head",
                    "inputs_embeds_projector",
                    "codebooks_head"]
