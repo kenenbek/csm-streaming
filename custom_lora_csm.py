@@ -97,7 +97,7 @@ def prepare_csm_model_for_training():
     quant_config = BitsAndBytesConfig(
         load_in_8bit=True,
         llm_int8_skip_modules=MODULES_TO_SAVE,
-        bnb_8bit_compute_dtype=torch.bfloat16,
+        bnb_8bit_compute_dtype=torch.float16,
     )
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
@@ -172,7 +172,6 @@ def main():
         num_train_epochs=NUM_EPOCHS,
         per_device_train_batch_size=BATCH_SIZE,
         logging_steps=10,
-        bf16=True,
         output_dir=f"./{OUTPUT_DIR}",
         report_to="wandb",
         save_steps=50,
