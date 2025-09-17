@@ -33,6 +33,7 @@ KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
 GRADIENT_ACCUMULATION_STEPS = 32
+GRADIENT_CHECKPOINTING = True
 LEARNING_RATE = 5e-5
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -113,7 +114,6 @@ def build_optimizer(model):
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
 
-    # Switch to 8-bit quantization (bitsandbytes)
     quant_config = BitsAndBytesConfig(
         load_in_8bit=True,
         llm_int8_skip_modules=MODULES_TO_SAVE,
@@ -126,12 +126,9 @@ def prepare_csm_model_for_training():
         trust_remote_code=True,
         device_map="auto",
     )
-
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
-    model.config.use_cache = False
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
 
     logger.info("Applying LoRA to model using PEFT...")
-
     peft_config = LoraConfig(
         r=R,
         lora_alpha=ALPHA,
@@ -196,6 +193,7 @@ def main():
         save_steps=50,
         save_total_limit=KEEP_LAST_N_CHECKPOINTS,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
+        gradient_checkpointing=GRADIENT_CHECKPOINTING,
         learning_rate=LEARNING_RATE,
         lr_scheduler_type="cosine",
         warmup_ratio=0.01,
