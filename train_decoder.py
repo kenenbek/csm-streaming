@@ -171,6 +171,7 @@ def main():
         learning_rate=LEARNING_RATE,
         lr_scheduler_type="cosine",
         warmup_ratio=0.01,
+        fp16=True,
     )
 
     trainer = Trainer(
