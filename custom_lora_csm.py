@@ -15,6 +15,7 @@ from peft import get_peft_model, LoraConfig, TaskType
 from peft.utils import prepare_model_for_kbit_training
 from lora import transcribe_audio_files
 from torch.utils.data import Dataset, DataLoader
+from bitsandbytes.optim import PagedAdamW8bit
 
 
 # Setup logging
@@ -44,6 +45,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_NAME = "sesame/csm-1b"
 MAX_AUDIO_FILES = 0
 
+LORA_LR = 1e-4
+MODULES_TO_SAVE_LR = 1e-5
 R = 64
 ALPHA = 128
 LORA_DROPOUT = 0.05
@@ -89,6 +92,30 @@ class ConversationDataset(Dataset):
         cleaned = {k: (v[0] if isinstance(v, torch.Tensor) and v.dim() > 0 else v)
                    for k, v in inputs.items() if torch.is_tensor(v)}
         return cleaned
+
+
+def split_trainable_params(model):
+    lora_params, mts_params = [], []
+    for name, p in model.named_parameters():
+        if not p.requires_grad:
+            continue
+        if "lora_" in name:
+            lora_params.append(p)
+        else:
+            mts_params.append(p)
+    return lora_params, mts_params
+
+def build_optimizer(model):
+    lora_params, mts_params = split_trainable_params(model)
+    param_groups = []
+    if lora_params:
+        param_groups.append({"params": lora_params, "lr": LORA_LR})
+    if mts_params:
+        param_groups.append({"params": mts_params, "lr": MODULES_TO_SAVE_LR})
+
+    # Use AdamW (or bitsandbytes' PagedAdamW8bit if preferred)
+    optimizer = PagedAdamW8bit(param_groups, betas=(0.9, 0.999), weight_decay=0.01)
+    return optimizer
 
 
 def prepare_csm_model_for_training():
@@ -176,14 +203,19 @@ def main():
         report_to="wandb",
         save_steps=50,
         save_total_limit=KEEP_LAST_N_CHECKPOINTS,
-        learning_rate=LEARNING_RATE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
+        learning_rate=LEARNING_RATE,
+        lr_scheduler_type="cosine",
+        warmup_ratio=0.01,
     )
+
+    optimizer = build_optimizer(model)
 
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=dataset,
+        optimizers=(optimizer, None),
     )
 
     trainer.train()
