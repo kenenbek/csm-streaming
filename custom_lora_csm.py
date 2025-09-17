@@ -4,17 +4,11 @@ import torch
 import logging
 import numpy as np
 from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor, BitsAndBytesConfig
-from tqdm import tqdm
 import wandb
-from models import Model
-from moshi.models import loaders
-from huggingface_hub import hf_hub_download
-from tokenizers.processors import TemplateProcessing
-
 from peft import get_peft_model, LoraConfig, TaskType
 from peft.utils import prepare_model_for_kbit_training
 from lora import transcribe_audio_files
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from bitsandbytes.optim import PagedAdamW8bit
 
 
@@ -64,7 +58,7 @@ TARGET_MODULES = [
     "down_proj"
 ]
 
-MODULES_TO_SAVE = ["depth_decoder"]
+MODULES_TO_SAVE = ["depth_decoder", "lm_head", "embed_text_tokens"]
 
 class ConversationDataset(Dataset):
     def __init__(self, audio_text_pairs, processor):
@@ -119,14 +113,10 @@ def build_optimizer(model):
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
 
-    # Switch to 4-bit quantization (QLoRA-style)
+    # Switch to 8-bit quantization (bitsandbytes)
     quant_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=(
-            torch.bfloat16 if torch.cuda.is_available() and getattr(torch.cuda, "is_bf16_supported", lambda: False)() else torch.float16
-        ),
+        load_in_8bit=True,
+        llm_int8_skip_modules=MODULES_TO_SAVE,
     )
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
@@ -148,7 +138,7 @@ def prepare_csm_model_for_training():
         target_modules=TARGET_MODULES,
         modules_to_save=MODULES_TO_SAVE,
         lora_dropout=LORA_DROPOUT,
-        bias="none",
+        bias="all",
         task_type=TaskType.CAUSAL_LM,
         use_rslora=True,
     )
