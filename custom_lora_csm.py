@@ -64,8 +64,7 @@ TARGET_MODULES = [
     "down_proj"
 ]
 
-MODULES_TO_SAVE = ["embed_text_tokens",
-                   "codebooks_head"]
+MODULES_TO_SAVE = ["depth_decoder"]
 
 class ConversationDataset(Dataset):
     def __init__(self, audio_text_pairs, processor):
