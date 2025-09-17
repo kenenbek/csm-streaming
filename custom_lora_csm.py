@@ -59,7 +59,10 @@ TARGET_MODULES = [
     "down_proj"
 ]
 
-MODULES_TO_SAVE = ["depth_decoder.model", "lm_head", "embed_text_tokens"]
+MODULES_TO_SAVE = ["embed_text_tokens",
+                   "lm_head",
+                   "inputs_embeds_projector",
+                   "codebooks_head"]
 
 class ConversationDataset(Dataset):
     def __init__(self, audio_text_pairs, processor):
