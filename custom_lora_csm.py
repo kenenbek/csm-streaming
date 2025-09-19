@@ -61,8 +61,8 @@ TARGET_MODULES = [
 
 MODULES_TO_SAVE = ["embed_text_tokens",
                    "embed_tokens",
-                   "inputs_embeds_projector",]
-                   # "codebooks_head"]
+                   "codebooks_head",]
+                   # "inputs_embeds_projector"]
 
 class ConversationDataset(Dataset):
     def __init__(self, audio_text_pairs, processor):
@@ -138,7 +138,7 @@ def prepare_csm_model_for_training():
         quantization_config=quant_config,
         trust_remote_code=True,
         device_map="auto",
-        torch_dtype=compute_dtype,
+        dtype=compute_dtype,
     )
     logger.info(f"Model loaded with 4-bit: {getattr(model, 'is_loaded_in_4bit', False)}; dtype: {compute_dtype}")
 
