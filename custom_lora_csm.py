@@ -59,8 +59,8 @@ TARGET_MODULES = [
     "down_proj"
 ]
 
-MODULES_TO_SAVE = ["embed_text_tokens",]
-                   # "embed_tokens",
+MODULES_TO_SAVE = ["embed_text_tokens",
+                   "embed_tokens",]
                    # "inputs_embeds_projector",
                    # "codebooks_head"]
 
@@ -154,8 +154,8 @@ def prepare_csm_model_for_training():
         use_rslora=True,
     )
 
-    model = get_peft_model(model, peft_config)
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=GRADIENT_CHECKPOINTING)
+    model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
 
     return model, processor
