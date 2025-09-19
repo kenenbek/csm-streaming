@@ -142,8 +142,6 @@ def prepare_csm_model_for_training():
     )
     logger.info(f"Model loaded with 4-bit: {getattr(model, 'is_loaded_in_4bit', False)}; dtype: {compute_dtype}")
 
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=GRADIENT_CHECKPOINTING)
-
     logger.info("Applying LoRA to model using PEFT...")
     peft_config = LoraConfig(
         r=R,
@@ -157,6 +155,7 @@ def prepare_csm_model_for_training():
     )
 
     model = get_peft_model(model, peft_config)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=GRADIENT_CHECKPOINTING)
     model.print_trainable_parameters()
 
     return model, processor
