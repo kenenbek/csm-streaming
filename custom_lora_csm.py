@@ -60,8 +60,8 @@ TARGET_MODULES = [
 ]
 
 MODULES_TO_SAVE = ["embed_text_tokens",
-                   "embed_tokens",]
-                   # "inputs_embeds_projector",
+                   "embed_tokens",
+                   "inputs_embeds_projector",]
                    # "codebooks_head"]
 
 class ConversationDataset(Dataset):
