@@ -9,7 +9,7 @@ from peft import get_peft_model, LoraConfig, TaskType
 from peft.utils import prepare_model_for_kbit_training
 from lora import transcribe_audio_files
 from torch.utils.data import Dataset
-from bitsandbytes.optim import PagedAdamW8bit
+from bitsandbytes.optim import PagedAdamW8bit, PagedLion8bit
 
 
 # Setup logging
@@ -33,7 +33,7 @@ KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
 GRADIENT_ACCUMULATION_STEPS = 32
-GRADIENT_CHECKPOINTING = True
+GRADIENT_CHECKPOINTING = False
 LEARNING_RATE = 5e-5
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -110,7 +110,7 @@ def build_optimizer(model):
         param_groups.append({"params": mts_params, "lr": MODULES_TO_SAVE_LR})
 
     # Use AdamW (or bitsandbytes' PagedAdamW8bit if preferred)
-    optimizer = PagedAdamW8bit(param_groups, betas=(0.9, 0.999), weight_decay=0.01)
+    optimizer = PagedLion8bit(param_groups, betas=(0.9, 0.999), weight_decay=0.01)
     return optimizer
 
 
