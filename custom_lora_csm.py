@@ -118,9 +118,19 @@ def build_optimizer(model):
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
 
+    # Choose compute dtype based on hardware: bf16 on Ampere+/CUDA if available, else fp16
+    if torch.cuda.is_available():
+        major, _ = torch.cuda.get_device_capability()
+        compute_dtype = torch.bfloat16 if major >= 8 else torch.float16
+    else:
+        compute_dtype = torch.float32
+
+    # Load model in 4-bit with NF4 quantization
     quant_config = BitsAndBytesConfig(
-        load_in_8bit=True,
-        llm_int8_skip_modules=MODULES_TO_SAVE,
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=compute_dtype,
     )
 
     processor = AutoProcessor.from_pretrained(MODEL_NAME)
@@ -129,7 +139,10 @@ def prepare_csm_model_for_training():
         quantization_config=quant_config,
         trust_remote_code=True,
         device_map="auto",
+        torch_dtype=compute_dtype,
     )
+    logger.info(f"Model loaded with 4-bit: {getattr(model, 'is_loaded_in_4bit', False)}; dtype: {compute_dtype}")
+
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
 
     logger.info("Applying LoRA to model using PEFT...")
@@ -187,6 +200,15 @@ def main():
         reinit=True,
     )
 
+    # Precision flags aligned with quantization compute dtype
+    precision_kwargs = {}
+    if DEVICE == "cuda":
+        major, _ = torch.cuda.get_device_capability()
+        if major >= 8:
+            precision_kwargs["bf16"] = True
+        else:
+            precision_kwargs["fp16"] = True
+
     training_args = TrainingArguments(
         overwrite_output_dir=True,
         num_train_epochs=NUM_EPOCHS,
@@ -201,6 +223,7 @@ def main():
         learning_rate=LEARNING_RATE,
         lr_scheduler_type="cosine",
         warmup_ratio=0.01,
+        **precision_kwargs,
     )
 
     optimizer = build_optimizer(model)
