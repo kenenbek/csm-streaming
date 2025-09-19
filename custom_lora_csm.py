@@ -33,7 +33,7 @@ KEEP_LAST_N_CHECKPOINTS = 5
 NUM_EPOCHS = 10
 BATCH_SIZE = 1
 GRADIENT_ACCUMULATION_STEPS = 32
-GRADIENT_CHECKPOINTING = True
+GRADIENT_CHECKPOINTING = False
 LEARNING_RATE = 5e-5
 SEED = 42
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -142,7 +142,7 @@ def prepare_csm_model_for_training():
     )
     logger.info(f"Model loaded with 4-bit: {getattr(model, 'is_loaded_in_4bit', False)}; dtype: {compute_dtype}")
 
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=GRADIENT_CHECKPOINTING)
 
     logger.info("Applying LoRA to model using PEFT...")
     peft_config = LoraConfig(
