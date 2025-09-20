@@ -110,7 +110,7 @@ def build_optimizer(model):
         param_groups.append({"params": mts_params, "lr": MODULES_TO_SAVE_LR})
 
     # Use AdamW (or bitsandbytes' PagedAdamW8bit if preferred)
-    optimizer = PagedLion8bit(param_groups, betas=(0.9, 0.999), weight_decay=0.01)
+    optimizer = PagedAdamW8bit(param_groups, betas=(0.9, 0.999), weight_decay=0.01)
     return optimizer
 
 
