@@ -59,9 +59,9 @@ TARGET_MODULES = [
     "down_proj"
 ]
 
-MODULES_TO_SAVE = ["embed_text_tokens",
+MODULES_TO_SAVE = ["codebooks_head",]
                    #"embed_tokens",
-                   "codebooks_head",]
+                   #"embed_text_tokens",]
                    # "inputs_embeds_projector"]
 
 class ConversationDataset(Dataset):
