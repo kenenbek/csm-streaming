@@ -29,3 +29,8 @@ class NoShuffleTrainer(Trainer):
         model.eval()
         inputs = self._prepare_inputs(inputs)
         print(inputs['labels'].shape)
+
+        with torch.no_grad():
+            loss = self.compute_loss(model, inputs)
+        # No backward or grad accumulation; just return loss for logging
+        return loss.detach()
