@@ -1,3 +1,4 @@
+import torch
 from torch.utils.data import SequentialSampler, DataLoader
 from transformers import Trainer
 
@@ -24,7 +25,7 @@ class NoShuffleTrainer(Trainer):
             collate_fn=self.data_collator,
         )
 
-    def training_step(self, model, inputs):
+    def training_step(self, model, inputs, num_items_in_batch):
         model.eval()
         inputs = self._prepare_inputs(inputs)
         print(inputs['labels'].shape)

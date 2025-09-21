@@ -52,8 +52,6 @@ MODULES_TO_SAVE = config["MODULES_TO_SAVE"]
 META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-print("LEARNING_RATE: ", type(LEARNING_RATE))
-
 def split_trainable_params(model):
     lora_params, mts_params = [], []
     for name, p in model.named_parameters():
@@ -177,10 +175,10 @@ def main():
         overwrite_output_dir=True,
         num_train_epochs=NUM_EPOCHS,
         per_device_train_batch_size=BATCH_SIZE,
-        logging_steps=10,
+        logging_steps=LOGGING_STEPS,
         output_dir=f"./{OUTPUT_DIR}",
         report_to="wandb",
-        save_steps=50,
+        save_steps=SAVE_STEPS,
         save_total_limit=KEEP_LAST_N_CHECKPOINTS,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         gradient_checkpointing=GRADIENT_CHECKPOINTING,
