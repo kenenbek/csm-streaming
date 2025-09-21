@@ -40,8 +40,8 @@ LEARNING_RATE = config["LEARNING_RATE"]
 SEED = config["SEED"]
 MODEL_NAME = config["MODEL_NAME"]
 
-LORA_LR = config["LORA_LR"]
-MODULES_TO_SAVE_LR = config["MODULES_TO_SAVE_LR"]
+LORA_LR = float(config["LORA_LR"])
+MODULES_TO_SAVE_LR = float(config["MODULES_TO_SAVE_LR"])
 R = config["R"]
 ALPHA = config["ALPHA"]
 LORA_DROPOUT = config["LORA_DROPOUT"]
