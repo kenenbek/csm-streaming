@@ -1,0 +1,24 @@
+PARENT_DIR = "/home/ubuntu/TTS-data-preparator/metadata"
+SHORT_META_FILES = ["Aiganysh-neutral.txt", "Aiganysh-strict.txt", "Timur-neutral.txt", "Timur-strict.txt"]
+OUTPUT_DIR: "finetuned_model"
+KEEP_LAST_N_CHECKPOINTS: 5
+NUM_EPOCHS: 10
+BATCH_SIZE: 1
+GRADIENT_ACCUMULATION_STEPS: 32
+GRADIENT_CHECKPOINTING: False
+LEARNING_RATE: 5e-5
+SEED: 42
+MODEL_NAME: "sesame/csm-1b"
+
+LORA_LR: 1e-4
+MODULES_TO_SAVE_LR: 1e-5
+R: 32
+ALPHA: 64
+LORA_DROPOUT: 0.05
+
+TARGET_MODULES: ["k_proj", "q_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+MODULES_TO_SAVE: ["codebooks_head",]
+                   #"embed_tokens",
+                   #"embed_text_tokens",]
+                   # "inputs_embeds_projector"]

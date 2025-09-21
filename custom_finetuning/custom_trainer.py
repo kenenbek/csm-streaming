@@ -1,0 +1,25 @@
+from torch.utils.data import SequentialSampler, DataLoader
+from transformers import Trainer
+
+
+class NoShuffleTrainer(Trainer):
+
+    def get_train_sampler(self):
+        return SequentialSampler(self.train_dataset)
+
+    def get_train_dataloader(self) -> DataLoader:
+        """
+        Returns the training DataLoader with shuffling disabled.
+        """
+        if self.train_dataset is None:
+            raise ValueError("Trainer: training requires a train_dataset.")
+
+        # Use the overridden sampler to preserve sorted order
+        train_sampler = self.get_train_sampler()
+
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.args.train_batch_size,
+            sampler=train_sampler,
+            collate_fn=self.data_collator,
+        )

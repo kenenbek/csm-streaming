@@ -10,3 +10,5 @@ model = CsmForConditionalGeneration.from_pretrained(
     )
 
 print(model)
+
+model.
