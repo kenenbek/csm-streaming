@@ -42,6 +42,7 @@ class ConversationDataset(Dataset):
 
         # Precompute lengths for sorting (prefer duration, fallback to waveform length)
         self._lengths: List[int] = [self._estimate_length(p) for p in self.pairs]
+        print(self._lengths)
         # Build index mapping (optionally sorted by length)
         indices = list(range(len(self.pairs)))
         if sort:

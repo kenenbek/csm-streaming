@@ -5,7 +5,7 @@ import yaml
 import numpy as np
 import torch
 from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor, BitsAndBytesConfig
-
+from custom_trainer import NoShuffleTrainer
 from peft import get_peft_model, LoraConfig, TaskType
 from peft.utils import prepare_model_for_kbit_training
 from bitsandbytes.optim import PagedAdamW8bit, PagedLion8bit
@@ -141,6 +141,8 @@ def main():
     dataset = ConversationDataset(
         audio_text_pairs,
         processor=processor,
+        sort=True,
+        reverse=False,
     )
 
     logger.info(f"Dataset created with {len(dataset)} samples")
@@ -186,7 +188,7 @@ def main():
 
     optimizer = build_optimizer(model)
 
-    trainer = Trainer(
+    trainer = NoShuffleTrainer(
         model=model,
         args=training_args,
         train_dataset=dataset,
