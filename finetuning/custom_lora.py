@@ -30,6 +30,8 @@ PARENT_DIR = config["PARENT_DIR"]
 SHORT_META_FILES = config["SHORT_META_FILES"]
 OUTPUT_DIR = config["OUTPUT_DIR"]
 KEEP_LAST_N_CHECKPOINTS = config["KEEP_LAST_N_CHECKPOINTS"]
+LOGGING_STEPS = config["LOGGING_STEPS"]
+SAVE_STEPS = config["SAVE_STEPS"]
 NUM_EPOCHS = config["NUM_EPOCHS"]
 BATCH_SIZE = config["BATCH_SIZE"]
 GRADIENT_ACCUMULATION_STEPS = config["GRADIENT_ACCUMULATION_STEPS"]
@@ -49,6 +51,8 @@ MODULES_TO_SAVE = config["MODULES_TO_SAVE"]
 
 META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+print("LEARNING_RATE: ", type(LEARNING_RATE))
 
 def split_trainable_params(model):
     lora_params, mts_params = [], []
