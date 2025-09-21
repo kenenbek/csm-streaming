@@ -1,5 +1,5 @@
-PARENT_DIR = "/home/ubuntu/TTS-data-preparator/metadata"
-SHORT_META_FILES = ["Aiganysh-neutral.txt", "Aiganysh-strict.txt", "Timur-neutral.txt", "Timur-strict.txt"]
+PARENT_DIR: "/home/ubuntu/TTS-data-preparator/metadata"
+SHORT_META_FILES: ["Aiganysh-neutral.txt", "Aiganysh-strict.txt", "Timur-neutral.txt", "Timur-strict.txt"]
 OUTPUT_DIR: "finetuned_model"
 KEEP_LAST_N_CHECKPOINTS: 5
 NUM_EPOCHS: 10
