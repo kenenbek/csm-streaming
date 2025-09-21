@@ -20,7 +20,7 @@ LORA_DROPOUT: 0.05
 
 TARGET_MODULES: ["k_proj", "q_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
-MODULES_TO_SAVE: ["codebooks_head",]
+MODULES_TO_SAVE: []# "codebooks_head",]
                    #"embed_tokens",
                    #"embed_text_tokens",]
                    # "inputs_embeds_projector"]
