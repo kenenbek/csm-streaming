@@ -1,6 +1,6 @@
 PARENT_DIR: "/home/ubuntu/TTS-data-preparator/metadata"
 SHORT_META_FILES: ["Aiganysh-neutral.txt", "Aiganysh-strict.txt", "Timur-neutral.txt", "Timur-strict.txt"]
-MAX_AUDIO_FILES: 256
+MAX_AUDIO_FILES: 8
 SORT: True
 REVERSE: True
 OUTPUT_DIR: "finetuned_model"
@@ -9,7 +9,7 @@ LOGGING_STEPS: 10
 SAVE_STEPS: 500
 NUM_EPOCHS: 1
 BATCH_SIZE: 1
-GRADIENT_ACCUMULATION_STEPS: 32
+GRADIENT_ACCUMULATION_STEPS: 1
 GRADIENT_CHECKPOINTING: False
 LEARNING_RATE: 5e-5
 SEED: 42
