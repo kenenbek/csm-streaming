@@ -61,7 +61,7 @@ class ConversationDataset(Dataset):
             text=text,
             audio=audio,
             output_labels=True,
-            text_kwargs={"padding": True},
+            text_kwargs={"padding": False},
             audio_kwargs={"sampling_rate": self.sample_rate},
             common_kwargs={"return_tensors": "pt"},
         )
