@@ -25,12 +25,13 @@ class NoShuffleTrainer(Trainer):
             collate_fn=self.data_collator,
         )
 
-    def training_step(self, model, inputs, num_items_in_batch):
-        model.eval()
+    def training_step(self, model, inputs, num_items_in_batch: int | None = None):
+        """Preserve HF training semantics (backward/AMP) but add a small hook.
+        Avoid torch.no_grad() and model.eval() to keep gradients flowing.
+        """
+        # Prepare inputs once here; avoid double work in super by passing them through.
         inputs = self._prepare_inputs(inputs)
-        print(inputs['labels'].shape)
-
-        with torch.no_grad():
-            loss = self.compute_loss(model, inputs)
-        # No backward or grad accumulation; just return loss for logging
-        return loss.detach()
+        if isinstance(inputs, dict) and "labels" in inputs and isinstance(inputs["labels"], torch.Tensor):
+            print(inputs["labels"].shape)
+        # Delegate to the base implementation so accelerator + scaler work correctly
+        return super().training_step(model, inputs)

@@ -28,6 +28,7 @@ with open(config_file, "r") as file:
 
 PARENT_DIR = config["PARENT_DIR"]
 SHORT_META_FILES = config["SHORT_META_FILES"]
+MAX_AUDIO_FILES = config["MAX_AUDIO_FILES"]
 OUTPUT_DIR = config["OUTPUT_DIR"]
 KEEP_LAST_N_CHECKPOINTS = config["KEEP_LAST_N_CHECKPOINTS"]
 LOGGING_STEPS = config["LOGGING_STEPS"]
@@ -135,7 +136,7 @@ def main():
         torch.backends.cudnn.benchmark = True
 
     model, processor = prepare_csm_model_for_training()
-    audio_text_pairs = parse_file_and_create_text_audio_pairs(metafile_paths=META_FILES)
+    audio_text_pairs = parse_file_and_create_text_audio_pairs(metafile_paths=META_FILES, MAX_AUDIO_FILES=MAX_AUDIO_FILES)
     if not audio_text_pairs:
         logger.error(f"No audio files found or transcribed in {META_FILES}")
         return
