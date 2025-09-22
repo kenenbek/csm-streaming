@@ -74,6 +74,7 @@ class ConversationDataset(Dataset):
             else:
                 print(f"{k}: {v}")
 
+        print(cleaned["labels"])
         decoded_labels = self.processor.tokenizer.decode(cleaned["labels"], skip_special_tokens=False)
         print("Decoded labels:", decoded_labels)
         print("Original text: ", text)
