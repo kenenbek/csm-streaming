@@ -26,12 +26,7 @@ class NoShuffleTrainer(Trainer):
         )
 
     def training_step(self, model, inputs, num_items_in_batch: int | None = None):
-        """Preserve HF training semantics (backward/AMP) but add a small hook.
-        Avoid torch.no_grad() and model.eval() to keep gradients flowing.
-        """
         # Prepare inputs once here; avoid double work in super by passing them through.
         inputs = self._prepare_inputs(inputs)
-        if isinstance(inputs, dict) and "labels" in inputs and isinstance(inputs["labels"], torch.Tensor):
-            print(inputs["labels"].shape)
-        # Delegate to the base implementation so accelerator + scaler work correctly
+        print(inputs["labels"].shape)
         return super().training_step(model, inputs)
