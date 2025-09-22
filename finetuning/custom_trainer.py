@@ -28,11 +28,10 @@ class NoShuffleTrainer(Trainer):
     def training_step(self, model, inputs, num_items_in_batch: int | None = None):
         # Prepare inputs once here; avoid double work in super by passing them through.
         inputs = self._prepare_inputs(inputs)
-        print(inputs["labels"].shape)
 
         for k, v in inputs.items():
             if torch.is_tensor(v):
-                print(f"{k}: {v.shape}, {v.dtype}, {v.device}")
+                print(f"{k}: {v.shape}, {v.dtype}")
             else:
                 print(f"{k}: {type(v)}, {v}")
         print("------------------------------------")
