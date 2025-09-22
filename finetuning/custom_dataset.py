@@ -56,7 +56,6 @@ class ConversationDataset(Dataset):
         item = self.pairs[real_idx]
         audio = item.load_audio(self.sample_rate)
         text = f"<|begin_of_text|>[{item.speaker_id}]{item.text}<|end_of_text|><|AUDIO|><|audio_eos|>"
-        print(text)
         inputs = self.processor(
             text=text,
             audio=audio,

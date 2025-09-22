@@ -55,6 +55,12 @@ MODULES_TO_SAVE = config["MODULES_TO_SAVE"]
 META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+LOCAL_WINDOWS = True
+if LOCAL_WINDOWS:
+    PARENT_DIR = "/mnt/c/Users/k_arzymatov/PycharmProjects/TTS-data-preparator/metadata"
+    SHORT_META_FILES = ["Aiganysh-neutral-linux.txt",  "Aiganysh-strict-linux.txt", "Timur-neutral-linux.txt", "Timur-strict-linux.txt"]
+    META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
+
 def split_trainable_params(model):
     lora_params, mts_params = [], []
     for name, p in model.named_parameters():
@@ -162,7 +168,8 @@ def main():
             "lora_alpha": ALPHA,
             "lora_dropout": LORA_DROPOUT,
         },
-        reinit=True,
+        return_previous=False,
+        finish_previous=True
     )
 
     # Precision flags aligned with quantization compute dtype
