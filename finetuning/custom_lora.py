@@ -29,6 +29,8 @@ with open(config_file, "r") as file:
 PARENT_DIR = config["PARENT_DIR"]
 SHORT_META_FILES = config["SHORT_META_FILES"]
 MAX_AUDIO_FILES = config["MAX_AUDIO_FILES"]
+SORT = config["SORT"]
+REVERSE = config["REVERSE"]
 OUTPUT_DIR = config["OUTPUT_DIR"]
 KEEP_LAST_N_CHECKPOINTS = config["KEEP_LAST_N_CHECKPOINTS"]
 LOGGING_STEPS = config["LOGGING_STEPS"]
@@ -144,8 +146,8 @@ def main():
     dataset = ConversationDataset(
         audio_text_pairs,
         processor=processor,
-        sort=True,
-        reverse=False,
+        sort=SORT,
+        reverse=REVERSE,
     )
 
     logger.info(f"Dataset created with {len(dataset)} samples")
