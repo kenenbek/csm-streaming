@@ -31,9 +31,9 @@ class NoShuffleTrainer(Trainer):
 
         for k, v in inputs.items():
             if torch.is_tensor(v):
-                print(f"{k}: {v.shape}, {v.dtype}")
+                print(f"{k}: {v.shape}")
             else:
-                print(f"{k}: {type(v)}, {v}")
+                print(f"{k}: {v}")
         print("------------------------------------")
 
         return super().training_step(model, inputs)
