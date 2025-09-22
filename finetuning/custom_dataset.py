@@ -61,29 +61,13 @@ class ConversationDataset(Dataset):
             text=text,
             audio=audio,
             output_labels=True,
-            text_kwargs={"padding": False},
+            text_kwargs={"padding": True},
             audio_kwargs={"sampling_rate": self.sample_rate},
             common_kwargs={"return_tensors": "pt"},
         )
         cleaned = {k: (v[0] if isinstance(v, torch.Tensor) and v.dim() > 0 else v)
                    for k, v in inputs.items() if torch.is_tensor(v)}
 
-        for k, v in cleaned.items():
-            if torch.is_tensor(v):
-                print(f"{k}: {v.shape}")
-            else:
-                print(f"{k}: {v}")
-
-
-        print("input_ids: ", cleaned["input_ids"])
-        decoded_input_ids = self.processor.tokenizer.decode(cleaned["input_ids"], skip_special_tokens=False)
-        print("Decoded input_ids:", decoded_input_ids)
-        print("labels: ", cleaned["labels"])
-        decoded_labels = self.processor.tokenizer.decode(cleaned["labels"], skip_special_tokens=False)
-        print("Decoded labels:", decoded_labels)
-        print("Original text: ", text)
-
-        print("------------------------------------")
         return cleaned
 
     @property

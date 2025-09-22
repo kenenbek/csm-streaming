@@ -26,6 +26,4 @@ class NoShuffleTrainer(Trainer):
         )
 
     def training_step(self, model, inputs, num_items_in_batch: int | None = None):
-        # Prepare inputs once here; avoid double work in super by passing them through.
-        inputs = self._prepare_inputs(inputs)
         return super().training_step(model, inputs)
