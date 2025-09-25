@@ -147,5 +147,7 @@ def main():
 
     trainer.train()
 
+    trainer.save_model(f"./{OUTPUT_DIR}/final_model")
+
 if __name__ == "__main__":
     main()
