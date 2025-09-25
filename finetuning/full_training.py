@@ -54,6 +54,10 @@ def prepare_csm_model_for_training():
         trust_remote_code=True,
     )
 
+    for name, param in model.named_parameters():
+        if "codec_model" in name:
+            param.requires_grad = False
+
     return model, processor
 
 
@@ -83,7 +87,6 @@ def data_collator(audio_text_pairs, processor):
     )
 
     return inputs
-
 
 
 
