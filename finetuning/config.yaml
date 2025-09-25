@@ -7,22 +7,22 @@ KEEP_LAST_N_CHECKPOINTS: 5
 LOGGING_STEPS: 10
 SAVE_STEPS: 100
 NUM_EPOCHS: 10
-BATCH_SIZE: 1
-GRADIENT_ACCUMULATION_STEPS: 32
+BATCH_SIZE: 16
+GRADIENT_ACCUMULATION_STEPS: 1
 GRADIENT_CHECKPOINTING: False
-LEARNING_RATE: 5e-5
+LEARNING_RATE: 1e-5
 SEED: 42
 MODEL_NAME: "sesame/csm-1b"
 
-LORA_LR: 1e-4
-MODULES_TO_SAVE_LR: 1e-5
-R: 32
-ALPHA: 64
-LORA_DROPOUT: 0.05
-
-TARGET_MODULES: ["k_proj", "q_proj", "v_proj", "o_proj"]#, "gate_proj", "up_proj", "down_proj"]
-
-MODULES_TO_SAVE: []# "codebooks_head",]
-                   #"embed_tokens",
-                   #"embed_text_tokens",]
-                   # "inputs_embeds_projector"]
+#LORA_LR: 1e-4
+#MODULES_TO_SAVE_LR: 1e-5
+#R: 32
+#ALPHA: 64
+#LORA_DROPOUT: 0.05
+#
+#TARGET_MODULES: ["k_proj", "q_proj", "v_proj", "o_proj"]#, "gate_proj", "up_proj", "down_proj"]
+#
+#MODULES_TO_SAVE: []# "codebooks_head",]
+#                   #"embed_tokens",
+#                   #"embed_text_tokens",]
+#                   # "inputs_embeds_projector"]

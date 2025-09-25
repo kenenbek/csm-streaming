@@ -1,0 +1,137 @@
+import os
+import logging
+import yaml
+
+import numpy as np
+import torch
+from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor
+
+from custom_dataset import parse_file_and_create_text_audio_pairs, ConversationDataset
+
+import wandb
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(), logging.FileHandler("finetune.log")]
+)
+logger = logging.getLogger(__name__)
+
+config_file = "config.yaml"
+with open(config_file, "r") as file:
+    config = yaml.safe_load(file)
+
+MANIFEST = config["MANIFEST"]
+MAX_AUDIO_FILES = config["MAX_AUDIO_FILES"]
+SORT = config["SORT"]
+REVERSE = config["REVERSE"]
+OUTPUT_DIR = config["OUTPUT_DIR"]
+KEEP_LAST_N_CHECKPOINTS = config["KEEP_LAST_N_CHECKPOINTS"]
+LOGGING_STEPS = config["LOGGING_STEPS"]
+SAVE_STEPS = config["SAVE_STEPS"]
+NUM_EPOCHS = config["NUM_EPOCHS"]
+BATCH_SIZE = config["BATCH_SIZE"]
+GRADIENT_ACCUMULATION_STEPS = config["GRADIENT_ACCUMULATION_STEPS"]
+GRADIENT_CHECKPOINTING = config["GRADIENT_CHECKPOINTING"]
+LEARNING_RATE = config["LEARNING_RATE"]
+SEED = config["SEED"]
+MODEL_NAME = config["MODEL_NAME"]
+
+
+DEVICE = "cuda:3" if torch.cuda.is_available() else "cpu"
+
+
+# Custom data collator to handle variable-length text/audio and labels (straightforward version)
+class DataCollatorCSM:
+    def __init__(self, processor, label_pad_token_id: int = -100):
+        self.processor = processor
+        self.label_pad_token_id = label_pad_token_id
+        self.pad_token_id = processor.tokenizer.pad_token_id
+
+    def __call__(self, features):
+        batch = self.processor.pad(features, padding=True, return_tensors="pt")
+        labels = batch["labels"]
+        # Replace tokenizer pad tokens in labels with ignore index for loss
+        batch["labels"] = labels.masked_fill(labels == self.pad_token_id, self.label_pad_token_id)
+        return batch
+
+
+def prepare_csm_model_for_training():
+    logger.info(f"Loading CSM model: {MODEL_NAME}")
+
+    processor = AutoProcessor.from_pretrained(MODEL_NAME)
+    model = CsmForConditionalGeneration.from_pretrained(
+        MODEL_NAME,
+        trust_remote_code=True,
+        device_map="auto",
+    )
+
+    return model, processor
+
+
+def main():
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(SEED)
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    torch.backends.cuda.enable_flash_sdp(True)
+    if DEVICE == "cuda":
+        torch.backends.cudnn.benchmark = True
+
+    model, processor = prepare_csm_model_for_training()
+    audio_text_pairs = parse_file_and_create_text_audio_pairs(MANIFEST, MAX_AUDIO_FILES=MAX_AUDIO_FILES)
+    if not audio_text_pairs:
+        logger.error(f"No audio files found or transcribed in {MANIFEST}")
+        return
+
+    dataset = ConversationDataset(
+        audio_text_pairs,
+        processor=processor,
+        sort=SORT,
+        reverse=REVERSE,
+    )
+
+    logger.info(f"Dataset created with {len(dataset)} samples")
+    wandb.init(
+        project="csm-finetune",
+        config={
+            "model_name": MODEL_NAME,
+            "learning_rate": LEARNING_RATE,
+            "epochs": NUM_EPOCHS,
+            "batch_size": BATCH_SIZE,
+        },
+        reinit=True
+    )
+
+    training_args = TrainingArguments(
+        overwrite_output_dir=True,
+        num_train_epochs=NUM_EPOCHS,
+        per_device_train_batch_size=BATCH_SIZE,
+        logging_steps=LOGGING_STEPS,
+        output_dir=f"./{OUTPUT_DIR}",
+        report_to="wandb",
+        save_steps=SAVE_STEPS,
+        save_total_limit=KEEP_LAST_N_CHECKPOINTS,
+        gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
+        gradient_checkpointing=GRADIENT_CHECKPOINTING,
+        learning_rate=LEARNING_RATE,
+        lr_scheduler_type="cosine",
+        warmup_ratio=0.01,
+    )
+
+    data_collator = DataCollatorCSM(processor)
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=dataset,
+        data_collator=data_collator,
+    )
+
+    trainer.train()
+
+if __name__ == "__main__":
+    main()
