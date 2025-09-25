@@ -39,17 +39,19 @@ SEED = config["SEED"]
 MODEL_NAME = config["MODEL_NAME"]
 
 
-DEVICE = "cuda:3" if torch.cuda.is_available() else "cpu"
+# If you want to target a specific GPU (e.g., GPU 3), prefer setting this before launching:
+#   CUDA_VISIBLE_DEVICES=3 python finetuning/full_training.py
+# Trainer will then use cuda:0 (which is your selected physical GPU).
 
 
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
 
     processor = CsmProcessor.from_pretrained(MODEL_NAME)
+    # Load on CPU; Trainer/Accelerate will move to the right single device (cuda:0) automatically.
     model = CsmForConditionalGeneration.from_pretrained(
         MODEL_NAME,
         trust_remote_code=True,
-        device_map="auto",
     )
 
     return model, processor
@@ -93,7 +95,8 @@ def main():
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     torch.backends.cuda.enable_flash_sdp(True)
-    if DEVICE == "cuda":
+    # Enable cuDNN benchmark on any CUDA device
+    if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
     model, processor = prepare_csm_model_for_training()
