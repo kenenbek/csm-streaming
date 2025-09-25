@@ -79,16 +79,6 @@ class ConversationDataset(Dataset):
         return int(audio.shape[-1])
 
 
-def get_speaker_name(path):
-    p = Path(path)
-    parts = p.parts  # tuple of all path components
-    # find the date folder (pattern: DD.MM.YYYY)
-    for i, part in enumerate(parts):
-        if len(part.split(".")) == 3:  # crude date detection
-            if i + 1 < len(parts):
-                return parts[i + 1]  # the folder right after the date
-    return None
-
 def parse_file_and_create_text_audio_pairs(MANIFEST: str = None, MAX_AUDIO_FILES: int = 0):
     audio_text_pairs = []
 

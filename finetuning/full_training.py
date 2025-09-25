@@ -4,7 +4,7 @@ import yaml
 
 import numpy as np
 import torch
-from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor, CsmProcessor
+from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, CsmProcessor
 
 from custom_dataset import parse_file_and_create_text_audio_pairs, ConversationDataset
 
@@ -45,7 +45,7 @@ DEVICE = "cuda:3" if torch.cuda.is_available() else "cpu"
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
 
-    processor = AutoProcessor.from_pretrained(MODEL_NAME)
+    processor = CsmProcessor.from_pretrained(MODEL_NAME)
     model = CsmForConditionalGeneration.from_pretrained(
         MODEL_NAME,
         trust_remote_code=True,
@@ -53,6 +53,36 @@ def prepare_csm_model_for_training():
     )
 
     return model, processor
+
+
+def data_collator(audio_text_pairs, processor):
+    conversations = []
+
+    for pair in audio_text_pairs:
+        text = pair.text
+
+        audio = pair.load_audio()
+        conversations.append(
+            [
+                {
+                "role": f"{500 + pair.speaker_id}",
+                "content": [
+                    {"type": "text", "text": text},
+                    {"type": "audio", "audio": audio}
+                ]
+                }
+            ]
+        )
+
+    inputs = processor.apply_chat_template(
+        conversations,
+        tokenize=True,
+        return_dict=True,
+        output_labels=True,
+    )
+    return inputs
+
+
 
 
 def main():
@@ -112,7 +142,7 @@ def main():
         model=model,
         args=training_args,
         train_dataset=dataset,
-        processing_class=CsmProcessor,
+        data_collator=lambda batch: data_collator(batch, processor),
     )
 
     trainer.train()
