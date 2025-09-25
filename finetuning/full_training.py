@@ -61,14 +61,13 @@ def data_collator(audio_text_pairs, processor):
     for pair in audio_text_pairs:
         text = pair.text
 
-        audio = pair.load_audio()
         conversations.append(
             [
                 {
                 "role": f"{500 + pair.speaker_id}",
                 "content": [
                     {"type": "text", "text": text},
-                    {"type": "audio", "audio": audio}
+                    {"type": "audio", "audio": pair.audio_path}
                 ]
                 }
             ]
@@ -80,7 +79,7 @@ def data_collator(audio_text_pairs, processor):
         return_dict=True,
         output_labels=True,
     )
-    
+
     return inputs
 
 
