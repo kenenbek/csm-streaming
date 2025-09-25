@@ -79,6 +79,17 @@ class ConversationDataset(Dataset):
         return int(audio.shape[-1])
 
 
+class SimpleDataset(Dataset):
+    def __init__(self, audio_text_pairs):
+        self.pairs = audio_text_pairs
+
+    def __len__(self):
+        return len(self.pairs)
+
+    def __getitem__(self, idx):
+        return self.pairs[idx]
+
+
 def parse_file_and_create_text_audio_pairs(MANIFEST: str = None, MAX_AUDIO_FILES: int = 0):
     audio_text_pairs = []
 
@@ -102,7 +113,7 @@ def parse_file_and_create_text_audio_pairs(MANIFEST: str = None, MAX_AUDIO_FILES
             raise ValueError()
 
         audio_text_pairs.append(AudioTextPair(audio_path=local_path,
-                                              text="<" + tone + ">" + " " + transcription,
+                                              text=transcription,             # text="<" + tone + ">" + " " + transcription,
                                               speaker_id=speaker_id))
 
         if 0 < MAX_AUDIO_FILES <= len(audio_text_pairs):

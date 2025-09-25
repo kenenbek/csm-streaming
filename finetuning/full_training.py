@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, CsmProcessor
 
-from custom_dataset import parse_file_and_create_text_audio_pairs, ConversationDataset
+from custom_dataset import parse_file_and_create_text_audio_pairs, SimpleDataset
 
 import wandb
 
@@ -80,6 +80,7 @@ def data_collator(audio_text_pairs, processor):
         return_dict=True,
         output_labels=True,
     )
+    
     return inputs
 
 
@@ -102,11 +103,8 @@ def main():
         logger.error(f"No audio files found or transcribed in {MANIFEST}")
         return
 
-    dataset = ConversationDataset(
-        audio_text_pairs,
-        processor=processor,
-        sort=SORT,
-        reverse=REVERSE,
+    dataset = SimpleDataset(
+        audio_text_pairs
     )
 
     logger.info(f"Dataset created with {len(dataset)} samples")
