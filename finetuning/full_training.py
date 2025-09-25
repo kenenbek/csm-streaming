@@ -4,7 +4,7 @@ import yaml
 
 import numpy as np
 import torch
-from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor
+from transformers import CsmForConditionalGeneration, Trainer, TrainingArguments, AutoProcessor, CsmProcessor
 
 from custom_dataset import parse_file_and_create_text_audio_pairs, ConversationDataset
 
@@ -112,7 +112,7 @@ def main():
         model=model,
         args=training_args,
         train_dataset=dataset,
-        processing_class=processor,
+        processing_class=CsmProcessor,
     )
 
     trainer.train()
