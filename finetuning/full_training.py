@@ -96,7 +96,7 @@ def main():
 
     logger.info(f"Dataset created with {len(dataset)} samples")
     wandb.init(
-        project="csm-finetune",
+        project="full-csm-finetune",
         config={
             "model_name": MODEL_NAME,
             "learning_rate": LEARNING_RATE,
