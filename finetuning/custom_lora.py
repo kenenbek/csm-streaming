@@ -26,8 +26,7 @@ config_file = "config.yaml"
 with open(config_file, "r") as file:
     config = yaml.safe_load(file)
 
-PARENT_DIR = config["PARENT_DIR"]
-SHORT_META_FILES = config["SHORT_META_FILES"]
+MANIFEST = config["MANIFEST"]
 MAX_AUDIO_FILES = config["MAX_AUDIO_FILES"]
 SORT = config["SORT"]
 REVERSE = config["REVERSE"]
@@ -52,14 +51,7 @@ LORA_DROPOUT = config["LORA_DROPOUT"]
 TARGET_MODULES = config["TARGET_MODULES"]
 MODULES_TO_SAVE = config["MODULES_TO_SAVE"]
 
-META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-LOCAL_WINDOWS = True
-if LOCAL_WINDOWS:
-    PARENT_DIR = "/mnt/c/Users/k_arzymatov/PycharmProjects/TTS-data-preparator/metadata"
-    SHORT_META_FILES = ["Aiganysh-neutral-linux.txt",  "Aiganysh-strict-linux.txt", "Timur-neutral-linux.txt", "Timur-strict-linux.txt"]
-    META_FILES = [os.path.join(PARENT_DIR, meta) for meta in SHORT_META_FILES]
 
 def split_trainable_params(model):
     lora_params, mts_params = [], []
@@ -144,9 +136,9 @@ def main():
         torch.backends.cudnn.benchmark = True
 
     model, processor = prepare_csm_model_for_training()
-    audio_text_pairs = parse_file_and_create_text_audio_pairs(metafile_paths=META_FILES, MAX_AUDIO_FILES=MAX_AUDIO_FILES)
+    audio_text_pairs = parse_file_and_create_text_audio_pairs(MANIFEST, MAX_AUDIO_FILES=MAX_AUDIO_FILES)
     if not audio_text_pairs:
-        logger.error(f"No audio files found or transcribed in {META_FILES}")
+        logger.error(f"No audio files found or transcribed in {MANIFEST}")
         return
 
     dataset = ConversationDataset(
@@ -168,8 +160,7 @@ def main():
             "lora_alpha": ALPHA,
             "lora_dropout": LORA_DROPOUT,
         },
-        return_previous=False,
-        finish_previous=True
+        reinit=True
     )
 
     # Precision flags aligned with quantization compute dtype
@@ -200,7 +191,7 @@ def main():
 
     optimizer = build_optimizer(model)
 
-    trainer = NoShuffleTrainer(
+    trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=dataset,

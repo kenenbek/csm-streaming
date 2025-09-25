@@ -1,5 +1,4 @@
-PARENT_DIR: "/home/ubuntu/TTS-data-preparator/metadata"
-SHORT_META_FILES: ["Aiganysh-neutral.txt", "Aiganysh-strict.txt", "Timur-neutral.txt", "Timur-strict.txt"]
+MANIFEST: DUMMY1/filtered_manifest.txt
 MAX_AUDIO_FILES: 0
 SORT: False
 REVERSE: False
@@ -21,7 +20,7 @@ R: 32
 ALPHA: 64
 LORA_DROPOUT: 0.05
 
-TARGET_MODULES: ["k_proj", "q_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+TARGET_MODULES: ["k_proj", "q_proj", "v_proj", "o_proj"]#, "gate_proj", "up_proj", "down_proj"]
 
 MODULES_TO_SAVE: []# "codebooks_head",]
                    #"embed_tokens",

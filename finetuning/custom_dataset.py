@@ -40,11 +40,10 @@ class ConversationDataset(Dataset):
         self.processor = processor
         self.sample_rate = processor.feature_extractor.sampling_rate
 
-        # Precompute lengths for sorting (prefer duration, fallback to waveform length)
-        self._lengths: List[int] = [self._estimate_length(p) for p in self.pairs]
         # Build index mapping (optionally sorted by length)
         indices = list(range(len(self.pairs)))
         if sort:
+            self._lengths: List[int] = [self._estimate_length(p) for p in self.pairs]
             indices = sorted(indices, key=lambda i: self._lengths[i], reverse=reverse)
         self._indices = indices
 
@@ -90,43 +89,34 @@ def get_speaker_name(path):
                 return parts[i + 1]  # the folder right after the date
     return None
 
-def parse_file_and_create_text_audio_pairs(metafile_paths: str = None, MAX_AUDIO_FILES: int = 0):
+def parse_file_and_create_text_audio_pairs(MANIFEST: str = None, MAX_AUDIO_FILES: int = 0):
     audio_text_pairs = []
 
     # Metafile mode
-    for metafile_path in metafile_paths:
-        meta_df = pd.read_csv(metafile_path, sep="|", header=None)
+    meta_df = pd.read_csv(MANIFEST, sep="|", header=None)
+    # Iterate over rows
+    for _, row in meta_df.iterrows():
+        local_path = row[0]
+        speaker = row[1]
+        tone = row[2]
+        _ = row[3]
+        transcription = row[4]
 
-        # Iterate over rows
-        for _, row in meta_df.iterrows():
-            local_path = row[0]
-            transcription = row[1]
+        if "Timur" == speaker:
+            speaker_id = 0
+        elif "Aiganysh" == speaker:
+            speaker_id = 1
+        else:
+            print(speaker)
+            print(local_path)
+            raise ValueError()
 
-            # Get parent directory
-            speaker_name = get_speaker_name(local_path)  # Output: Айганыш
+        audio_text_pairs.append(AudioTextPair(audio_path=local_path,
+                                              text="<" + tone + ">" + " " + transcription,
+                                              speaker_id=speaker_id))
 
-            if "Тимур" == speaker_name:
-                speaker_id = 0
-            elif "Айганыш" == speaker_name or "Айганыш" == speaker_name:
-                speaker_id = 1
-            else:
-                print(speaker_name)
-                print(local_path)
-                raise ValueError()
-
-            if "neutral".lower() in metafile_path.lower():
-                tone = "<neutral>"
-            elif "strict".lower() in metafile_path.lower():
-                tone = "<strict>"
-            else:
-                raise ValueError()
-
-            audio_text_pairs.append(AudioTextPair(audio_path=local_path,
-                                                  text=tone + " " + transcription,
-                                                  speaker_id=speaker_id))
-
-            if 0 < MAX_AUDIO_FILES <= len(audio_text_pairs):
-                logger.info(f"Reached MAX_AUDIO_FILES limit ({MAX_AUDIO_FILES}) while reading metafile.")
-                break
+        if 0 < MAX_AUDIO_FILES <= len(audio_text_pairs):
+            logger.info(f"Reached MAX_AUDIO_FILES limit ({MAX_AUDIO_FILES}) while reading metafile.")
+            break
 
     return audio_text_pairs
