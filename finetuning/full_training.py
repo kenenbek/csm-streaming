@@ -42,21 +42,6 @@ MODEL_NAME = config["MODEL_NAME"]
 DEVICE = "cuda:3" if torch.cuda.is_available() else "cpu"
 
 
-# Custom data collator to handle variable-length text/audio and labels (straightforward version)
-class DataCollatorCSM:
-    def __init__(self, processor, label_pad_token_id: int = -100):
-        self.processor = processor
-        self.label_pad_token_id = label_pad_token_id
-        self.pad_token_id = processor.tokenizer.pad_token_id
-
-    def __call__(self, features):
-        batch = self.processor.pad(features, padding=True, return_tensors="pt")
-        labels = batch["labels"]
-        # Replace tokenizer pad tokens in labels with ignore index for loss
-        batch["labels"] = labels.masked_fill(labels == self.pad_token_id, self.label_pad_token_id)
-        return batch
-
-
 def prepare_csm_model_for_training():
     logger.info(f"Loading CSM model: {MODEL_NAME}")
 
@@ -122,13 +107,12 @@ def main():
         warmup_ratio=0.01,
     )
 
-    data_collator = DataCollatorCSM(processor)
 
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=dataset,
-        data_collator=data_collator,
+        processing_class=processor,
     )
 
     trainer.train()
